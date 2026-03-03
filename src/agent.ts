@@ -2,7 +2,6 @@ import mineflayer, { Bot } from 'mineflayer';
 import { config } from './config';
 import { AIController } from './ai';
 import { Environment } from './environment/environment';
-import { type EnvironmentSnapshot } from './environment/types';
 
 export class Agent {
     public bot: Bot;
@@ -54,7 +53,7 @@ export class Agent {
         }, 2000);
     }
 
-    private observeEnvironment(): EnvironmentSnapshot {
+    private observeEnvironment() {
         return this.environment.getEnvironmentSnapshot()
     }
 
