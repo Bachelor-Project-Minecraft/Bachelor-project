@@ -6,5 +6,8 @@ export const config = {
   ollama: {
     model: 'qwen3:4b', // Model
     baseUrl: 'http://127.0.0.1:11434'
-  }
+  },
+  jarName: 'server.jar',
+  minRam: '4G',
+  maxRam: '4G'
 };
