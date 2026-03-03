@@ -2,12 +2,14 @@ import { Ollama } from 'ollama';
 import { config } from './config';
 import { SkillRegistry } from './skills/skillRegistry';
 import { Bot } from 'mineflayer';
+import { getSummarizeHistoryPrompt, getSystemPrompt } from './utils/prompts';
 
 export class AIController {
     private ollama: Ollama;
     private bot: Bot;
     private registry: SkillRegistry;
     private history: { role: string; content: string }[] = [];
+    private memory: string = ''; // Store summarized memory
     private isProcessing: boolean = false; // Prevent overlapping thoughts
 
     constructor(bot: Bot) {
@@ -17,10 +19,7 @@ export class AIController {
         
         this.history.push({
             role: 'system',
-            content: `You are a Minecraft Bot named ${config.username}.
-                      If you are in danger, use your tools to survive.
-                      If you see a player, be friendly.
-                      Always execute a tool if the situation requires action.`
+            content: getSystemPrompt(config.username, this.memory)
         });
     }
 
@@ -40,6 +39,13 @@ export class AIController {
         this.history.push({ role, content });
 
         try {
+            console.log(this.history.length)
+            if (this.shouldSummarizeHistory()) {
+                await this.summarizeHistory();
+                console.log(this.history)
+                console.log(this.memory)
+            }
+
             const response = await this.ollama.chat({
                 model: config.ollama.model,
                 messages: this.history,
@@ -67,5 +73,45 @@ export class AIController {
         } finally {
             this.isProcessing = false;
         }
+    }
+
+    private async summarizeHistory() {
+        const summarizeChunkSize = Math.max(1, config.ai.summarizeChunkSize);
+
+        const chunk = this.history.slice(1, 1 + summarizeChunkSize);
+        if (chunk.length === 0) return;
+
+        const toSummarize = chunk
+            .map((message) => `[${message.role}] ${message.content}`)
+            .join('\n');
+
+        try {
+            const summary = await this.ollama.generate({
+                model: config.ollama.model,
+                prompt: getSummarizeHistoryPrompt(config.username, this.memory, toSummarize)
+            });
+
+            const updatedMemory = summary.response.trim();
+            if (updatedMemory) {
+                this.memory = updatedMemory;
+                this.updateSystemPrompt();
+            }
+
+            this.history.splice(1, chunk.length);
+        } catch (error) {
+            console.error('History summarization error:', error);
+        }
+    }
+
+    private shouldSummarizeHistory() {
+        const maxHistoryMessages = Math.max(1, config.ai.maxHistoryMessages);
+        return this.history.length - 1 >= maxHistoryMessages;
+    }
+
+    private updateSystemPrompt() {
+        this.history[0] = {
+            role: 'system',
+            content: getSystemPrompt(config.username, this.memory)
+        };
     }
 }
