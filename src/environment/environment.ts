@@ -38,6 +38,7 @@ export class Environment {
 				this.toNearbyEntity(
 					entity.id,
 					entity.name ?? entity.displayName ?? "unknown",
+					entity.health,
 					entity.position,
 				),
 			)
@@ -48,6 +49,7 @@ export class Environment {
 				this.toNearbyEntity(
 					entity.id,
 					entity.username ?? entity.displayName ?? "unknown",
+					entity.health,
 					entity.position,
 				),
 			)
@@ -100,12 +102,14 @@ export class Environment {
 	private toNearbyEntity(
 		id: number,
 		name: string,
+		health: number | undefined,
 		position: Vec3,
 	): SnapshotNearbyEntity {
 		const botPosition = this.bot.entity.position
 		return {
 			id,
 			name,
+			health,
 			distance: position.distanceTo(botPosition),
 			position: this.getPosition(position.x, position.y, position.z),
 		}

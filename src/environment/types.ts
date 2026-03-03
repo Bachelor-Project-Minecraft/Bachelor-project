@@ -7,6 +7,7 @@ export interface SnapshotPosition {
 export interface SnapshotNearbyEntity {
 	id: number
 	name: string
+	health?: number
 	distance: number
 	position: SnapshotPosition
 }
