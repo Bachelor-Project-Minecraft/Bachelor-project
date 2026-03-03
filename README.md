@@ -9,3 +9,10 @@ A population of large language model (LLM) agents is placed in a shared Minecraf
 The central challenge is to determine whether culture (e.g., shared norms, conventions, roles, and knowledge transmitted through interaction) can emerge and persist in a way that measurably improves collective survival over time.
 
 The problem requires defining environmental pressures (e.g., scarcity, hostile mobs, disasters) and specifying what counts as "culture".
+
+## To run:
+Call npm run dev
+
+This will boot up the minecraft server and connect a bot.
+
+The first time, the program is lauched, the server will generate a eula.txt file. This must be set to TRUE, before running the application.
