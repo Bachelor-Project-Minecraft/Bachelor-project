@@ -1,11 +1,14 @@
 import mineflayer, { Bot } from 'mineflayer';
 import { config } from './config';
 import { AIController } from './ai';
+import { Environment } from './environment/environment';
+import { type EnvironmentSnapshot } from './environment/types';
 
 export class Agent {
     public bot: Bot;
     public ai: AIController;
     private lastDanger: number = 0; // Timestamp to prevent spamming danger alerts
+    private environment: Environment;
 
     constructor() {
         this.bot = mineflayer.createBot({
@@ -16,8 +19,12 @@ export class Agent {
         });
 
         this.ai = new AIController(this.bot);
+        this.environment = new Environment(this.bot);
         this.initializeEvents();
         this.startSensors();
+        setTimeout(() => {
+            console.log(JSON.stringify(this.observeEnvironment()));
+        }, 5000);
     }
 
     private initializeEvents(): void {
@@ -45,6 +52,10 @@ export class Agent {
         setInterval(() => {
             this.checkForDanger();
         }, 2000);
+    }
+
+    private observeEnvironment(): EnvironmentSnapshot {
+        return this.environment.getEnvironmentSnapshot()
     }
 
     private checkForDanger() {
