@@ -19,7 +19,7 @@ export class AIController {
         
         this.history.push({
             role: 'system',
-            content: getSystemPrompt(config.username, this.memory)
+            content: getSystemPrompt(this.agent.username, this.memory)
         });
     }
 
@@ -91,7 +91,7 @@ export class AIController {
         try {
             const summary = await this.ollama.generate({
                 model: config.ollama.model,
-                prompt: getSummarizeHistoryPrompt(config.username, this.memory, toSummarize)
+                prompt: getSummarizeHistoryPrompt(this.agent.username, this.memory, toSummarize)
             });
 
             const updatedMemory = summary.response.trim();
@@ -114,7 +114,7 @@ export class AIController {
     private updateSystemPrompt() {
         this.history[0] = {
             role: 'system',
-            content: getSystemPrompt(config.username, this.memory)
+            content: getSystemPrompt(this.agent.username, this.memory)
         };
     }
 }
