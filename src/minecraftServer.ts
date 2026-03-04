@@ -9,11 +9,14 @@ export class MinecraftServer {
     private minRam: string;
     private maxRam: string;
 
+    public isFrozen: Boolean;
+
     constructor() {
         this.port = config.port;
         this.jarName = config.jarName;
         this.minRam = config.minRam;
         this.maxRam = config.maxRam;
+        this.isFrozen = false;
     }
 
     public start(): Promise<void> {
@@ -70,5 +73,17 @@ export class MinecraftServer {
     public stop(): void {
         console.log('Stopping server...');
         this.sendCommand('stop');
+    }
+
+    public setFreeze(freeze: boolean): void {
+        if (freeze) {
+            console.log('Freezing world...');
+            this.isFrozen = true;
+            this.sendCommand('tick freeze');
+        } else {
+            console.log('Unfreezing world...');
+            this.isFrozen = false;
+            this.sendCommand('tick unfreeze');
+        }
     }
 }

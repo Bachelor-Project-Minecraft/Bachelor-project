@@ -1,4 +1,5 @@
 import mineflayer, { Bot } from 'mineflayer';
+import { MinecraftServer } from './minecraftServer';
 import { config } from './config';
 import { AIController } from './ai';
 
@@ -6,16 +7,20 @@ export class Agent {
     public bot: Bot;
     public ai: AIController;
     private lastDanger: number = 0; // Timestamp to prevent spamming danger alerts
+    public server: MinecraftServer;
 
-    constructor() {
+    public isFrozen: boolean;
+
+    constructor(server: MinecraftServer) {
         this.bot = mineflayer.createBot({
             host: config.host,
             port: config.port,
             username: config.username,
             auth: config.auth
         });
-
-        this.ai = new AIController(this.bot);
+        this.isFrozen = false;
+        this.server = server;
+        this.ai = new AIController(this);
         this.initializeEvents();
         this.startSensors();
     }
@@ -61,5 +66,15 @@ export class Agent {
                 this.ai.processEvent(`WARNING: A ${nearestMob.name} is approaching! It is ${dist} blocks away.`);
             }
         }
+    }
+
+    public setFreeze(freeze: boolean): void {
+        if (freeze) {
+            console.log('Freezing bot...');
+        } else {
+            console.log('Unfreezing bot...');
+        }
+        this.isFrozen = freeze;
+        this.bot.physicsEnabled = !freeze;
     }
 }

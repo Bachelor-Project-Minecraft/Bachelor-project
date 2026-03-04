@@ -2,16 +2,17 @@ import { Ollama } from 'ollama';
 import { config } from './config';
 import { SkillRegistry } from './skills/skillRegistry';
 import { Bot } from 'mineflayer';
+import { Agent } from './agent';
 
 export class AIController {
     private ollama: Ollama;
-    private bot: Bot;
+    private agent: Agent;
     private registry: SkillRegistry;
     private history: { role: string; content: string }[] = [];
     private isProcessing: boolean = false; // Prevent overlapping thoughts
 
-    constructor(bot: Bot) {
-        this.bot = bot;
+    constructor(agent: Agent) {
+        this.agent = agent;
         this.ollama = new Ollama({ host: config.ollama.baseUrl });
         this.registry = new SkillRegistry();
         
@@ -39,12 +40,18 @@ export class AIController {
         this.isProcessing = true;
         this.history.push({ role, content });
 
+        this.agent.setFreeze(true);
+        this.agent.server.setFreeze(true);
+
         try {
             const response = await this.ollama.chat({
                 model: config.ollama.model,
                 messages: this.history,
                 tools: this.registry.getTools() as any
             });
+
+            this.agent.setFreeze(false);
+            this.agent.server.setFreeze(false);
 
             this.history.push(response.message);
 
@@ -53,7 +60,7 @@ export class AIController {
                     const skill = this.registry.getSkill(tool.function.name);
                     if (skill) {
                         console.log(`Executing skill: ${skill.name}`);
-                        const result = await skill.execute(this.bot, tool.function.arguments);
+                        const result = await skill.execute(this.agent.bot, tool.function.arguments);
                         
                         this.history.push({
                             role: 'tool',

@@ -6,7 +6,7 @@ async function main() {
     
     try {
         await server.start();
-        const agent = new Agent();
+        const agent = new Agent(server);
     } catch (error) {
         console.error('Failed to boot Minecraft server:', error);
     }
