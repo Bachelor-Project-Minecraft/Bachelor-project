@@ -42,8 +42,6 @@ export class AIController {
 
     private async generateResponse(role: string, content: string) {
         try {
-            console.log(this.history.length)
-            console.log(this.history)
             if (this.shouldSummarizeHistory()) {
                 await this.summarizeHistory();
             }
