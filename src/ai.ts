@@ -6,14 +6,14 @@ import { getSummarizeHistoryPrompt, getSystemPrompt } from './utils/prompts';
 
 export class AIController {
     private ollama: Ollama;
-    private bot: Bot;
+    private agent: Bot;
     private registry: SkillRegistry;
     private history: { role: string; content: string }[] = [];
     private memory: string = ''; // Store summarized memory
     private isProcessing: boolean = false; // Prevent overlapping thoughts
 
-    constructor(bot: Bot) {
-        this.bot = bot;
+    constructor(agent: Bot) {
+        this.agent = agent;
         this.ollama = new Ollama({ host: config.ollama.baseUrl });
         this.registry = new SkillRegistry();
         
@@ -29,21 +29,23 @@ export class AIController {
         await this.generateResponse('system', `EVENT: ${eventDescription}`);
     }
 
-    public async processChat(username: string, message: string) {
+    public async processChat(sender: string, message: string) {
         if (this.isProcessing) return;
-        await this.generateResponse('user', `${username}: ${message}`);
+        this.isProcessing = true;
+
+        const role = 'user';
+        const content = `${sender}: ${message}`;
+        this.history.push({ role, content });
+
+        await this.generateResponse(role, content);
     }
 
     private async generateResponse(role: string, content: string) {
-        this.isProcessing = true;
-        this.history.push({ role, content });
-
         try {
             console.log(this.history.length)
+            console.log(this.history)
             if (this.shouldSummarizeHistory()) {
                 await this.summarizeHistory();
-                console.log(this.history)
-                console.log(this.memory)
             }
 
             const response = await this.ollama.chat({
@@ -52,18 +54,21 @@ export class AIController {
                 tools: this.registry.getTools() as any
             });
 
-            this.history.push(response.message);
-
-            if (response.message.tool_calls) {
+            if (!response.message.tool_calls) {
+                this.history.push({
+                    role: 'assistant',
+                    content: `${this.agent.username}: ${response.message.content || ''}`
+                });
+            } else {
                 for (const tool of response.message.tool_calls) {
                     const skill = this.registry.getSkill(tool.function.name);
                     if (skill) {
                         console.log(`Executing skill: ${skill.name}`);
-                        const result = await skill.execute(this.bot, tool.function.arguments);
+                        const result = await skill.execute(this.agent, tool.function.arguments);
                         
                         this.history.push({
                             role: 'tool',
-                            content: result,
+                            content: `${this.agent.username}: ${result}`,
                         });
                     }
                 }

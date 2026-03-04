@@ -8,7 +8,11 @@ export const ChatSkill: Skill = {
         message: z.string().describe('The message to send')
     }),
     execute: async (bot, args) => {
-        const { message } = args;
+        const message =
+            typeof args?.message === 'string' && args.message.trim()
+                ? args.message
+                : "No response";
+                
         bot.chat(message);
         return `Sent message: "${message}"`;
     }
