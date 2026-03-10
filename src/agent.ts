@@ -2,13 +2,14 @@ import mineflayer, { Bot } from 'mineflayer';
 import { MinecraftServer } from './minecraftServer';
 import { config } from './config';
 import { AIController } from './ai';
+import { Environment } from './environment/environment';
 
 export class Agent {
     public bot: Bot;
     public ai: AIController;
     private lastDanger: number = 0; // Timestamp to prevent spamming danger alerts
+    private environment: Environment;
     public server: MinecraftServer;
-
     public isFrozen: boolean;
 
     constructor(server: MinecraftServer) {
@@ -18,11 +19,17 @@ export class Agent {
             username: config.username,
             auth: config.auth
         });
+
+        this.environment = new Environment(this.bot);
         this.isFrozen = false;
         this.server = server;
         this.ai = new AIController(this);
+        
         this.initializeEvents();
         this.startSensors();
+        setTimeout(() => {
+            console.log(JSON.stringify(this.observeEnvironment()));
+        }, 5000);
     }
 
     private initializeEvents(): void {
@@ -50,6 +57,10 @@ export class Agent {
         setInterval(() => {
             this.checkForDanger();
         }, 2000);
+    }
+
+    private observeEnvironment() {
+        return this.environment.getEnvironmentSnapshot()
     }
 
     private checkForDanger() {
