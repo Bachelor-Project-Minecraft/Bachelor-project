@@ -6,6 +6,7 @@ async function main() {
     const server = new MinecraftServer();
     
     try {
+        server.resetWorld();
         await server.start();
 
         config.admins.forEach(admin => {

@@ -1,6 +1,7 @@
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import * as path from 'path';
 import { config } from './config';
+import * as fs from 'fs';
 
 export class MinecraftServer {
     private serverProcess: ChildProcessWithoutNullStreams | null = null;
@@ -84,6 +85,33 @@ export class MinecraftServer {
             console.log('Unfreezing world...');
             this.isFrozen = false;
             this.sendCommand('tick unfreeze');
+        }
+    }
+
+    public resetWorld(): void{
+        if (this.serverProcess) {
+            console.error('Server is currently running. Cannot reset');
+            return;
+        }
+
+        const serverDirectory = path.join(__dirname, 'server');
+        const worldPath = path.join(serverDirectory, 'world');
+        const cleanWorldPath = path.join(serverDirectory, 'world_clean');
+
+        try {
+            if (!fs.existsSync(cleanWorldPath)) {
+                console.error('Reset failed, could not find:', cleanWorldPath);
+                return;
+            }
+
+            if (fs.existsSync(worldPath)) {
+                fs.rmSync(worldPath, { recursive: true, force: true });
+            }
+
+            fs.cpSync(cleanWorldPath, worldPath, { recursive: true });
+
+        } catch (error) {
+            console.error('Error during world reset:', error);
         }
     }
 }
