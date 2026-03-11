@@ -1,6 +1,6 @@
 import { Bot } from "mineflayer"
 import { Vec3 } from "vec3"
-import { roundNum } from "../util/util"
+import { roundNum } from "../utils/util"
 import {
 	type SnapshotEntity,
 	type SnapshotPosition,
