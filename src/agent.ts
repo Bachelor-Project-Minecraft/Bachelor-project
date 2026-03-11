@@ -38,7 +38,7 @@ export class Agent {
         });
 
         this.bot.on('chat', (username, message) => {
-            if (username === this.bot.username) return;
+            if (username === this.bot.username || username === "Server") return;
             this.ai.processChat(username, message);
         });
 
