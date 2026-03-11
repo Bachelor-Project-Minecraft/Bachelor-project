@@ -4,7 +4,7 @@ export interface SnapshotPosition {
 	z: number
 }
 
-export interface SnapshotNearbyEntity {
+export interface SnapshotEntity {
 	id: number
 	name: string
 	health?: number
@@ -32,8 +32,8 @@ export interface EnvironmentSnapshot {
 	food: number
 	position: SnapshotPosition
 	nearby: {
-		hostiles: SnapshotNearbyEntity[]
-		players: SnapshotNearbyEntity[]
+		hostiles: SnapshotEntity[]
+		players: SnapshotEntity[]
 		droppedItems: SnapshotDroppedItem[]
 	}
 	inventory: {
@@ -41,4 +41,5 @@ export interface EnvironmentSnapshot {
 		emptySlots: number
 		items: SnapshotInventoryItem[]
 	}
+	allPlayers: SnapshotEntity[]
 }

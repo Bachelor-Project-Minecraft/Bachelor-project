@@ -2,7 +2,7 @@ import { Bot } from "mineflayer"
 import { Vec3 } from "vec3"
 import { roundNum } from "../util/util"
 import {
-	type SnapshotNearbyEntity,
+	type SnapshotEntity,
 	type SnapshotPosition,
 	type EnvironmentSnapshot,
 } from "./types"
@@ -36,24 +36,47 @@ export class Environment {
 		const hostiles = nearbyEntities
 			.filter((entity) => entity.type === "hostile")
 			.map((entity) =>
-				this.toNearbyEntity(
+				this.toSnapshotEntity(
 					entity.id,
 					entity.name ?? entity.displayName ?? "unknown",
 					entity.health,
 					entity.position,
+					botPosition,
 				),
 			)
 
 		const players = nearbyEntities
 			.filter((entity) => entity.type === "player")
 			.map((entity) =>
-				this.toNearbyEntity(
+				this.toSnapshotEntity(
 					entity.id,
 					entity.username ?? entity.displayName ?? "unknown",
 					entity.health,
 					entity.position,
+					botPosition,
 				),
 			)
+
+		const allPlayers = Object.values(this.bot.players)
+			.filter((player) => player.username !== this.bot.username)
+			.sort((left, right) => left.username.localeCompare(right.username))
+			.flatMap((player) => {
+				const entity = player.entity as typeof player.entity | null
+
+				if (!entity) {
+					return []
+				}
+
+				return [
+					this.toSnapshotEntity(
+						entity.id,
+						player.username,
+						entity.health,
+						entity.position,
+						botPosition,
+					),
+				]
+			})
 
 		const droppedItems = nearbyEntities
 			.filter(
@@ -93,6 +116,7 @@ export class Environment {
 				emptySlots,
 				items: inventoryItems,
 			},
+			allPlayers,
 		}
 	}
 
@@ -104,13 +128,13 @@ export class Environment {
 		}
 	}
 
-	private toNearbyEntity(
+	private toSnapshotEntity(
 		id: number,
 		name: string,
 		health: number | undefined,
 		position: Vec3,
-	): SnapshotNearbyEntity {
-		const botPosition = this.bot.entity.position
+		botPosition: Vec3,
+	): SnapshotEntity {
 		return {
 			id,
 			name,
