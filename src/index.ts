@@ -12,6 +12,7 @@ async function main() {
         config.admins.forEach(admin => {
             server.sendCommand(`op ${admin}`);
         });
+        server.sendCommand('gamerule send_command_feedback false');
 
         const agent = new Agent(server);
     } catch (error) {

@@ -10,23 +10,30 @@ export class AIController {
     private registry: SkillRegistry;
     private history: { role: string; content: string }[] = [];
     private memory: string = ''; // Store summarized memory
+    private environmentSnapshot: string = ''; // Store latest environment snapshot
     private isProcessing: boolean = false; // Prevent overlapping thoughts
 
     constructor(agent: Agent) {
         this.agent = agent;
         this.ollama = new Ollama({ host: config.ollama.baseUrl });
         this.registry = new SkillRegistry();
-        
+
         this.history.push({
             role: 'system',
-            content: getSystemPrompt(this.agent.bot.username, this.memory)
+            content: getSystemPrompt(this.agent.bot.username, this.memory, this.environmentSnapshot)
         });
     }
 
-    public async processEvent(eventDescription: string) {
+    public async processEvent(eventRespondent: string, eventDescription: string) {
         if (this.isProcessing) return;
-        console.log(`[Event] ${eventDescription}`);
-        await this.generateResponse('system', `EVENT: ${eventDescription}`);
+
+        console.log(`${eventRespondent} <Event>: ${eventDescription}`);
+        this.history.push({
+            role: 'assistant',
+            content: `${eventRespondent} <Event>: ${eventDescription}`
+        });
+
+        await this.generateResponse();
     }
 
     public async processChat(sender: string, message: string) {
@@ -34,19 +41,21 @@ export class AIController {
         this.isProcessing = true;
 
         const role = 'user';
-        const content = `${sender}: ${message}`;
+        const content = `${sender} <MESSAGE>: ${message}`;
         this.history.push({ role, content });
 
-        await this.generateResponse(role, content);
+        await this.generateResponse();
     }
 
-    private async generateResponse(role: string, content: string) {
+    private async generateResponse() {
         this.isProcessing = true;
 
         this.agent.setFreeze(true);
         this.agent.server.setFreeze(true);
 
         try {
+            this.updateSystemPromptEnvironment();
+
             if (this.shouldSummarizeHistory()) {
                 await this.summarizeHistory();
             }
@@ -63,7 +72,7 @@ export class AIController {
             if (!response.message.tool_calls) {
                 this.history.push({
                     role: 'assistant',
-                    content: `${this.agent.bot.username}: ${response.message.content || ''}`
+                    content: `Me <NO ACTION RESPONSE>: ${response.message.content || ''}`
                 });
             } else {
                 for (const tool of response.message.tool_calls) {
@@ -74,7 +83,7 @@ export class AIController {
                         
                         this.history.push({
                             role: 'tool',
-                            content: `${this.agent.bot.username}: ${result}`,
+                            content: `Me ${result}`,
                         });
                     }
                 }
@@ -105,7 +114,7 @@ export class AIController {
             const updatedMemory = summary.response.trim();
             if (updatedMemory) {
                 this.memory = updatedMemory;
-                this.updateSystemPrompt();
+                this.updateSystemPromptMemory();
             }
 
             this.history.splice(1, chunk.length);
@@ -119,10 +128,18 @@ export class AIController {
         return this.history.length - 1 >= maxHistoryMessages;
     }
 
-    private updateSystemPrompt() {
+    private updateSystemPromptEnvironment() {
+        this.environmentSnapshot = JSON.stringify(this.agent.observeEnvironment());
         this.history[0] = {
             role: 'system',
-            content: getSystemPrompt(this.agent.bot.username, this.memory)
+            content: getSystemPrompt(this.agent.bot.username, this.memory, this.environmentSnapshot)
+        };
+    }
+
+    private updateSystemPromptMemory() {
+        this.history[0] = {
+            role: 'system',
+            content: getSystemPrompt(this.agent.bot.username, this.memory, this.environmentSnapshot)
         };
     }
 }

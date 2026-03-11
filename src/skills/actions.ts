@@ -14,7 +14,7 @@ export const ChatSkill: Skill = {
                 : "No response";
                 
         bot.chat(message);
-        return `Sent message: "${message}"`;
+        return `<MESSAGE>: "${message}"`;
     }
 };
 
@@ -27,11 +27,11 @@ export const AttackSkill: Skill = {
         const enemy = bot.nearestEntity(e => e.type === 'hostile' && e.position.distanceTo(bot.entity.position) < 5);
         
         if (!enemy) {
-            return "No enemies nearby to attack.";
+            return "<NO ENEMIES>: No enemies nearby to attack.";
         }
 
         bot.lookAt(enemy.position.offset(0, enemy.height, 0));
         bot.attack(enemy);
-        return `Attacked ${enemy.name}!`;
+        return `<ATTACKED>: ${enemy.name}!`;
     }
 };
