@@ -1,5 +1,6 @@
 import { Bot } from "mineflayer"
 import { Vec3 } from "vec3"
+import { roundNum } from "../util/util"
 import {
 	type SnapshotNearbyEntity,
 	type SnapshotPosition,
@@ -67,7 +68,7 @@ export class Environment {
 					id: entity.id,
 					name: droppedItem?.name ?? entity.name ?? "unknown_item",
 					count: droppedItem?.count ?? 1,
-					distance: entity.position.distanceTo(botPosition),
+					distance: roundNum(entity.position.distanceTo(botPosition)),
 					position: this.getPosition(
 						entity.position.x,
 						entity.position.y,
@@ -96,7 +97,11 @@ export class Environment {
 	}
 
 	private getPosition(x: number, y: number, z: number): SnapshotPosition {
-		return { x, y, z }
+		return {
+			x: roundNum(x),
+			y: roundNum(y),
+			z: roundNum(z),
+		}
 	}
 
 	private toNearbyEntity(
@@ -110,7 +115,7 @@ export class Environment {
 			id,
 			name,
 			health,
-			distance: position.distanceTo(botPosition),
+			distance: roundNum(position.distanceTo(botPosition)),
 			position: this.getPosition(position.x, position.y, position.z),
 		}
 	}
