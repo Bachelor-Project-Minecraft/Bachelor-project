@@ -1,5 +1,6 @@
 import { Skill } from "../types";
 import { z } from "zod";
+import { GeneratedActionService } from "./generatedActionService";
 
 export const ChatSkill: Skill = {
     name: 'send_chat',
@@ -12,7 +13,7 @@ export const ChatSkill: Skill = {
             typeof args?.message === 'string' && args.message.trim()
                 ? args.message
                 : "No response";
-                
+
         bot.chat(message);
         return `<MESSAGE>: "${message}"`;
     }
@@ -25,7 +26,7 @@ export const AttackSkill: Skill = {
     parameters: z.object({}),
     execute: async (bot) => {
         const enemy = bot.nearestEntity(e => e.type === 'hostile' && e.position.distanceTo(bot.entity.position) < 5);
-        
+
         if (!enemy) {
             return "<NO ENEMIES>: No enemies nearby to attack.";
         }
@@ -35,3 +36,19 @@ export const AttackSkill: Skill = {
         return `<ATTACKED>: ${enemy.name}!`;
     }
 };
+
+const UseActionParameters = z.object({
+    name: z.string().describe('The reusable action name'),
+    description: z.string().describe('What the action should do'),
+    args: z.array(z.string()).describe('Ordered string arguments for the action')
+});
+
+export const createUseActionSkill = (actionService: GeneratedActionService): Skill => ({
+    name: 'use_action',
+    description: 'Execute a reusable Minecraft action by name, generating and saving it if needed.',
+    parameters: UseActionParameters,
+    execute: async (bot, args) => {
+        const parsedArgs = UseActionParameters.parse(args);
+        return actionService.useAction(bot, parsedArgs);
+    }
+});

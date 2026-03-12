@@ -7,8 +7,12 @@ export const config = {
     maxHistoryMessages: 15,
     summarizeChunkSize: 5
   },
+  actions: {
+    generationRetries: 3
+  },
   ollama: {
     model: 'qwen3:4b', // Model
+    actionModel: 'qwen3:4b',
     baseUrl: 'http://127.0.0.1:11434'
   },
   jarName: 'server.jar',

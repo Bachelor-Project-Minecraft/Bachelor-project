@@ -3,6 +3,7 @@ import { config } from './config';
 import { SkillRegistry } from './skills/skillRegistry';
 import { getSummarizeHistoryPrompt, getSystemPrompt } from './utils/prompts';
 import { Agent } from './agent';
+import { GeneratedActionService } from './skills/generatedActionService';
 
 export class AIController {
     private ollama: Ollama;
@@ -16,7 +17,7 @@ export class AIController {
     constructor(agent: Agent) {
         this.agent = agent;
         this.ollama = new Ollama({ host: config.ollama.baseUrl });
-        this.registry = new SkillRegistry();
+        this.registry = new SkillRegistry(new GeneratedActionService(this.ollama));
 
         this.history.push({
             role: 'system',
@@ -80,7 +81,7 @@ export class AIController {
                     if (skill) {
                         console.log(`Executing skill: ${skill.name}`);
                         const result = await skill.execute(this.agent.bot, tool.function.arguments);
-                        
+
                         this.history.push({
                             role: 'tool',
                             content: `Me ${result}`,

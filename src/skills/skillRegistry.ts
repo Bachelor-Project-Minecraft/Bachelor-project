@@ -1,16 +1,17 @@
 import { Skill } from "../types";
-
-// Import your skill files here
-import { ChatSkill } from "./actions";
-import { AttackSkill } from "./actions";
+import { AttackSkill, ChatSkill, createUseActionSkill } from "./actions";
+import { GeneratedActionService } from "./generatedActionService";
 
 export class SkillRegistry {
     private skills: Map<string, Skill> = new Map();
 
-    constructor() {
-        // Register default skills
+    constructor(actionService?: GeneratedActionService) {
         this.registerSkill(ChatSkill);
         this.registerSkill(AttackSkill);
+
+        if (actionService) {
+            this.registerSkill(createUseActionSkill(actionService));
+        }
     }
 
     registerSkill(skill: Skill) {
@@ -21,14 +22,13 @@ export class SkillRegistry {
         return this.skills.get(name);
     }
 
-    // Returns the tools formatted for the Ollama API
     getTools() {
         return Array.from(this.skills.values()).map(skill => ({
             type: 'function',
             function: {
                 name: skill.name,
                 description: skill.description,
-                parameters: skill.parameters 
+                parameters: skill.parameters
             }
         }));
     }
