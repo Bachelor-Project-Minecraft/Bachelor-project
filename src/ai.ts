@@ -31,7 +31,14 @@ export class AIController {
     constructor(agent: Agent) {
         this.agent = agent;
         this.ollama = new Ollama({ host: config.ollama.baseUrl });
-        this.registry = new SkillRegistry(new GeneratedActionService(this.ollama));
+        this.registry = SkillRegistry.getInstance();
+        this.registry.initializeBuiltIns(
+            new GeneratedActionService(
+                this.ollama,
+                (definition, executeAction) => this.registry.createGeneratedSkill(definition, executeAction),
+                (skill) => this.registry.registerGeneratedSkill(skill)
+            )
+        );
 
         this.history.push({
             role: 'system',
@@ -151,7 +158,7 @@ export class AIController {
 
         for (let attempt = 1; attempt <= config.actions.generationRetries; attempt++) {
             console.warn(
-                `Invalid arguments for ${skill.name} on attempt ${attempt}: ${validation.error}`
+                `Invalid arguments for ${skill.name} on attempt ${attempt}: ${validation.error}\n\n Raw arguments: ${this.stringifyArgs(rawArgs)}`
             );
 
             const repairPrompt = getToolRepairPrompt(
@@ -244,10 +251,17 @@ export class AIController {
     }
 
     private async requestChat(messages: ChatMessage[]) {
+        console.log("---------------------------------------------------------------")
+        console.log("Available tools for this request:");
+        for (const tool of this.registry.getTools()) {
+            console.log(`- ${tool.function.name}: ${tool.function.description}`);
+        }
+        console.log("---------------------------------------------------------------")
         return this.ollama.chat({
             model: config.ollama.model,
             messages,
-            tools: this.registry.getTools() as any
+            tools: this.registry.getTools() as any,
+            think: "medium"
         });
     }
 

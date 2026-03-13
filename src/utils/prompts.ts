@@ -42,7 +42,8 @@ export const SYSTEM_PROMPT = `You are a Minecraft Bot named {NAME}.
 You can use tools to interact with the world and with other players.
 If you see a player, be friendly.
 Always execute a tool if the situation requires action.
-Use the use_action tool to get a new action. Use this when the other tool calls do not match the situation.
+Prefer to use existing tools to accomplish tasks, but if there is not an existing tool that matches the situation, use the use_action tool to create a new action for that situation.
+Use the use_action tool to create a new action. Use this when the other tool calls do not match the situation.
 For use_action, always include JSON fields named "name", "description", and "args".
 The args array can contain strings, numbers, booleans, null, arrays, and objects.
 Do not wrap arrays or objects inside quoted JSON strings. Pass them as raw JSON values.
@@ -181,13 +182,31 @@ bot.pathfinder.setMovements(movements);
 await bot.pathfinder.goto(new goals.GoalNear(targetEntity.position.x, targetEntity.position.y, targetEntity.position.z, 1));
 return "<PICKED UP>: Moved to the dropped item.";`;
 
-export const ACTION_GENERATION_PROMPT = `You write JavaScript Mineflayer action code.
+const ACTION_JSON_EXAMPLE = `Example JSON output:
+{
+  "name": "GoToPosition",
+  "description": "Walk to a target world position using pathfinder",
+  "parameters": [
+    {
+      "name": "target",
+      "description": "World position object with numeric x, y, and z fields"
+    }
+  ],
+  "code": "const target = args[0];\\nif (!target || typeof target !== 'object' || Array.isArray(target)) {\\n  return \\"<NO TARGET>: Missing position object.\\";\\n}\\nif (typeof target.x !== 'number' || typeof target.y !== 'number' || typeof target.z !== 'number') {\\n  return \\"<NO TARGET>: Position must include numeric x, y, z.\\";\\n}\\nconst movements = new Movements(bot);\\nbot.pathfinder.setMovements(movements);\\nawait bot.pathfinder.goto(new goals.GoalNear(Math.floor(target.x), Math.floor(target.y), Math.floor(target.z), 1));\\nreturn \\"<MOVED>: Reached the target position.\\";"
+}`;
+
+export const ACTION_GENERATION_PROMPT = `You design reusable Mineflayer tools.
 Task name: {ACTION_NAME}
 Task description: {ACTION_DESCRIPTION}
 Current args:
 {ACTION_ARGS}
 
-Write only the raw JavaScript body for an async function with runtime signature async (bot, args, Movements, goals, Vec3) => { ... }.
+Return exactly one valid JSON object with the fields:
+- name: canonical tool name
+- description: short tool description
+- parameters: ordered array of parameter descriptors with "name" and "description"
+- code: raw JavaScript body for an async function with runtime signature async (bot, args, Movements, goals, Vec3) => { ... }
+
 Available helpers:
 - bot: a mineflayer bot with bot.pathfinder already loaded
 - args: ordered JSON values
@@ -195,12 +214,16 @@ Available helpers:
 - goals: goal constructors from mineflayer-pathfinder
 - Vec3: Vec3 constructor for block positions
 Rules:
-- Output only the function body, nothing else
-- Do not include markdown fences, explanations, imports, or an outer function
+- Output valid JSON only, with no markdown fences or explanations
+- The tool name and each parameter name must match ^[A-Za-z][A-Za-z0-9_]*$
+- Keep parameters in the same order as the current args you expect to read from args[index]
+- Do not include imports, TypeScript, or an outer function
 - Use only bot, args, Movements, goals, and Vec3
 - Read inputs from args[index]
 - Return a short string describing what happened
 - Use valid JavaScript, not TypeScript
+
+${ACTION_JSON_EXAMPLE}
 
 ${ACTION_CODE_EXAMPLES}`;
 

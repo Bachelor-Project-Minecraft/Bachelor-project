@@ -1,4 +1,4 @@
-import { JsonValue, Skill } from "../types";
+import { JsonValue, JsonValueSchema, Skill } from "../types";
 import { z } from "zod";
 import { GeneratedActionService } from "./generatedActionService";
 
@@ -36,17 +36,6 @@ export const AttackSkill: Skill = {
         return `<ATTACKED>: ${enemy.name}!`;
     }
 };
-
-const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
-    z.union([
-        z.string(),
-        z.number(),
-        z.boolean(),
-        z.null(),
-        z.array(JsonValueSchema),
-        z.record(z.string(), JsonValueSchema)
-    ])
-);
 
 export const UseActionParameters = z.object({
     name: z.string().describe('The reusable action name'),
