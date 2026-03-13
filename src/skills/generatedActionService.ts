@@ -56,6 +56,8 @@ const GeneratedSkillDefinitionSchema = z.object({
     code: z.string().min(1)
 });
 
+const GeneratedSkillDefinitionResponseFormat = z.toJSONSchema(GeneratedSkillDefinitionSchema);
+
 export class GeneratedActionService {
     private readonly skillsPath = path.resolve(process.cwd(), 'src', 'skills', 'SKILLS.json');
 
@@ -121,9 +123,16 @@ export class GeneratedActionService {
     }
 
     private async generateActionDefinition(input: UseActionInput): Promise<GeneratedSkillDefinition | null> {
+        const prompt = [
+            getActionGenerationPrompt(input.name, input.description, input.args),
+            'Follow this JSON schema exactly:',
+            JSON.stringify(GeneratedSkillDefinitionResponseFormat)
+        ].join('\n\n');
+
         const response = await this.ollama.generate({
             model: config.ollama.actionModel,
-            prompt: getActionGenerationPrompt(input.name, input.description, input.args),
+            prompt,
+            format: GeneratedSkillDefinitionResponseFormat,
             think: false
         });
 
@@ -165,34 +174,17 @@ export class GeneratedActionService {
     }
 
     private parseGeneratedSkillDefinition(rawResponse: string): GeneratedSkillDefinition | null {
-        const normalizedResponse = this.stripCodeFence(rawResponse.trim());
-        const candidates = [normalizedResponse];
-        const firstBrace = normalizedResponse.indexOf('{');
-        const lastBrace = normalizedResponse.lastIndexOf('}');
-
-        if (firstBrace !== -1 && lastBrace > firstBrace) {
-            candidates.push(normalizedResponse.slice(firstBrace, lastBrace + 1));
-        }
-
-        for (const candidate of candidates) {
-            try {
-                const parsed = JSON.parse(candidate);
-                const result = GeneratedSkillDefinitionSchema.safeParse(parsed);
-                if (result.success) {
-                    return result.data;
-                }
-            } catch {
-                continue;
+        try {
+            const parsed = JSON.parse(rawResponse);
+            const result = GeneratedSkillDefinitionSchema.safeParse(parsed);
+            if (result.success) {
+                return result.data;
             }
+        } catch {
+            return null;
         }
 
         return null;
-    }
-
-    private stripCodeFence(value: string): string {
-        return value
-            .replace(/^```(?:json)?\s*/i, '')
-            .replace(/\s*```$/, '');
     }
 
     private normalizeText(value: string): string {
