@@ -1,8 +1,11 @@
 import { Bot } from "mineflayer";
+import { Movements as PathfinderMovements, goals as PathfinderGoals } from "mineflayer-pathfinder";
 import { Ollama } from "ollama";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { Vec3 as Vec3Constructor } from "vec3";
 import { config } from "../config";
+import { JsonValue } from "../types";
 import { getActionGenerationPrompt } from "../utils/prompts";
 
 interface StoredAction {
@@ -15,10 +18,16 @@ interface StoredAction {
 interface UseActionInput {
     name: string;
     description: string;
-    args: string[];
+    args: JsonValue[];
 }
 
-type ActionExecutor = (bot: Bot, args: string[]) => Promise<string>;
+type ActionExecutor = (
+    bot: Bot,
+    args: JsonValue[],
+    Movements: typeof PathfinderMovements,
+    goals: typeof PathfinderGoals,
+    Vec3: typeof Vec3Constructor
+) => Promise<string>;
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
     ...args: string[]
@@ -38,7 +47,9 @@ export class GeneratedActionService {
         }
 
         for (let attempt = 1; attempt <= config.actions.generationRetries; attempt++) {
+            console.log("Started code generation for action:", input.name);
             const code = await this.generateActionCode(input);
+            console.log("Finished code generation for action:", input.name);
             const compiledAction = this.compileAction(code);
 
             if (!compiledAction) {
@@ -47,7 +58,9 @@ export class GeneratedActionService {
             }
 
             try {
+                console.log("Started action execution for:", input.name);
                 const result = await this.runAction(compiledAction, bot, input.args);
+                console.log("Finished action execution for:", input.name);
                 await this.saveAction(storedActions, {
                     name: input.name,
                     description: input.description,
@@ -56,6 +69,7 @@ export class GeneratedActionService {
                         ? input.args.map((_, index) => `arg${index + 1}`)
                         : undefined
                 });
+                console.log("Saved action:", input.name);
                 return result;
             } catch (error) {
                 console.error(`Generated action "${input.name}" failed during execution:`, error);
@@ -115,13 +129,13 @@ export class GeneratedActionService {
 
     private compileAction(code: string): ActionExecutor | null {
         try {
-            return new AsyncFunction('bot', 'args', code);
+            return new AsyncFunction('bot', 'args', 'Movements', 'goals', 'Vec3', code);
         } catch {
             return null;
         }
     }
 
-    private async executeAction(bot: Bot, code: string, args: string[]): Promise<string> {
+    private async executeAction(bot: Bot, code: string, args: JsonValue[]): Promise<string> {
         const compiledAction = this.compileAction(code);
 
         if (!compiledAction) {
@@ -137,8 +151,8 @@ export class GeneratedActionService {
         }
     }
 
-    private async runAction(action: ActionExecutor, bot: Bot, args: string[]): Promise<string> {
-        const result = await action(bot, args);
+    private async runAction(action: ActionExecutor, bot: Bot, args: JsonValue[]): Promise<string> {
+        const result = await action(bot, args, PathfinderMovements, PathfinderGoals, Vec3Constructor);
         return typeof result === 'string' ? result : String(result);
     }
 

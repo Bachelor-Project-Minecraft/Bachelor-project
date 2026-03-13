@@ -1,15 +1,29 @@
 import { Ollama } from 'ollama';
+import { Agent } from './agent';
 import { config } from './config';
 import { SkillRegistry } from './skills/skillRegistry';
-import { getSummarizeHistoryPrompt, getSystemPrompt } from './utils/prompts';
-import { Agent } from './agent';
+import { Skill } from './types';
+import { getSummarizeHistoryPrompt, getSystemPrompt, getToolRepairPrompt } from './utils/prompts';
 import { GeneratedActionService } from './skills/generatedActionService';
+
+type ChatMessage = { role: string; content: string };
+
+type ToolCall = {
+    function: {
+        name: string;
+        arguments: unknown;
+    };
+};
+
+type ValidationResult =
+    | { success: true; data: unknown }
+    | { success: false; error: string };
 
 export class AIController {
     private ollama: Ollama;
     private agent: Agent;
     private registry: SkillRegistry;
-    private history: { role: string; content: string }[] = [];
+    private history: ChatMessage[] = [];
     private memory: string = ''; // Store summarized memory
     private environmentSnapshot: string = ''; // Store latest environment snapshot
     private isProcessing: boolean = false; // Prevent overlapping thoughts
@@ -61,39 +75,180 @@ export class AIController {
                 await this.summarizeHistory();
             }
 
-            const response = await this.ollama.chat({
-                model: config.ollama.model,
-                messages: this.history,
-                tools: this.registry.getTools() as any
-            });
+            console.log("Starting AI response generation...");
+            const response = await this.requestChat(this.history);
+            const toolCalls = (response.message.tool_calls ?? []) as ToolCall[];
+            console.log("Finished AI response generation.");
+
+            console.log("---------------------------------------------------------------")
+            console.log("Response message content: " + (response.message.content || "<NO CONTENT>"));
+            for (const tool of toolCalls) {
+                console.log(`Tool call: ${tool.function.name} with args ${JSON.stringify(tool.function.arguments)}`);
+            }
+            console.log("---------------------------------------------------------------")
+
+            if (toolCalls.length === 0) {
+                console.log("The model decided on no tool calls");
+                console.log("---------------------------------------------------------------")
+                console.log("History:")
+                console.log(this.history)
+                console.log("---------------------------------------------------------------")
+
+                this.agent.setFreeze(false);
+                this.agent.server.setFreeze(false);
+
+                return;
+            }
 
             this.agent.setFreeze(false);
             this.agent.server.setFreeze(false);
 
-            if (!response.message.tool_calls) {
-                this.history.push({
-                    role: 'assistant',
-                    content: `Me <NO ACTION RESPONSE>: ${response.message.content || ''}`
-                });
-            } else {
-                for (const tool of response.message.tool_calls) {
-                    const skill = this.registry.getSkill(tool.function.name);
-                    if (skill) {
-                        console.log(`Executing skill: ${skill.name}`);
-                        const result = await skill.execute(this.agent.bot, tool.function.arguments);
-
-                        this.history.push({
-                            role: 'tool',
-                            content: `Me ${result}`,
-                        });
-                    }
+            for (const toolCall of toolCalls) {
+                const result = await this.executeToolCall(toolCall);
+                if (!result) {
+                    continue;
                 }
+
+                this.history.push({
+                    role: 'tool',
+                    content: `Me ${result}`
+                });
             }
         } catch (error) {
-            console.error("AI Error:", error);
+            console.error('AI Error:', error);
         } finally {
             this.isProcessing = false;
         }
+    }
+
+    private async executeToolCall(toolCall: ToolCall): Promise<string | null> {
+        const skill = this.registry.getSkill(toolCall.function.name);
+        if (!skill) {
+            return null;
+        }
+
+        const resolvedArgs = await this.resolveToolArguments(skill, toolCall.function.arguments);
+        if (!resolvedArgs) {
+            return null;
+        }
+
+        console.log(`Executing skill: ${skill.name}`);
+
+        try {
+            return await skill.execute(this.agent.bot, resolvedArgs);
+        } catch (error) {
+            console.error(`Skill execution failed for ${skill.name}:`, error);
+            return null;
+        }
+    }
+
+    private async resolveToolArguments(skill: Skill, rawArgs: unknown): Promise<unknown | null> {
+        rawArgs = this.normalizeToolArguments(skill, rawArgs);
+        let validation = this.validateToolArguments(skill, rawArgs);
+        if (validation.success) {
+            return validation.data;
+        }
+
+        for (let attempt = 1; attempt <= config.actions.generationRetries; attempt++) {
+            console.warn(
+                `Invalid arguments for ${skill.name} on attempt ${attempt}: ${validation.error}`
+            );
+
+            const repairPrompt = getToolRepairPrompt(
+                skill.name,
+                this.stringifyArgs(rawArgs),
+                validation.error
+            );
+
+            const repairResponse = await this.requestChat([
+                ...this.history,
+                { role: 'user', content: repairPrompt }
+            ]);
+
+            const repairedToolCalls = (repairResponse.message.tool_calls ?? []) as ToolCall[];
+            const repairedToolCall = repairedToolCalls.find(
+                (candidate) => candidate.function.name === skill.name
+            );
+
+            if (!repairedToolCall) {
+                rawArgs = repairResponse.message.content || rawArgs;
+                validation = {
+                    success: false,
+                    error: `The repair response did not call ${skill.name}.`
+                };
+                continue;
+            }
+
+            rawArgs = this.normalizeToolArguments(skill, repairedToolCall.function.arguments);
+            validation = this.validateToolArguments(skill, rawArgs);
+
+            if (validation.success) {
+                return validation.data;
+            }
+        }
+
+        console.warn(`Skipping ${skill.name} after repeated invalid tool arguments.`);
+        return null;
+    }
+
+    private validateToolArguments(skill: Skill, rawArgs: unknown): ValidationResult {
+        const result = skill.parameters.safeParse(rawArgs);
+        if (result.success) {
+            return { success: true, data: result.data };
+        }
+
+        const error = result.error.issues
+            .map((issue) => {
+                const path = issue.path.length > 0 ? issue.path.join('.') : '(root)';
+                return `${path}: ${issue.message}`;
+            })
+            .join(' | ');
+
+        return {
+            success: false,
+            error
+        };
+    }
+
+    private normalizeToolArguments(skill: Skill, rawArgs: unknown): unknown {
+        if (skill.name !== 'use_action' || !rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
+            return rawArgs;
+        }
+
+        const candidate = rawArgs as Record<string, unknown>;
+        if (typeof candidate.args !== 'string') {
+            return rawArgs;
+        }
+
+        const trimmedArgs = candidate.args.trim();
+        if (!trimmedArgs.startsWith('[') && !trimmedArgs.startsWith('{')) {
+            return rawArgs;
+        }
+
+        try {
+            return {
+                ...candidate,
+                args: JSON.parse(trimmedArgs)
+            };
+        } catch {
+            return rawArgs;
+        }
+    }
+
+    private stringifyArgs(value: unknown): string {
+        try {
+            return JSON.stringify(value, null, 2) ?? String(value);
+        } catch {
+            return String(value);
+        }
+    }
+
+    private async requestChat(messages: ChatMessage[]) {
+        return this.ollama.chat({
+            model: config.ollama.model,
+            messages,
+            tools: this.registry.getTools() as any
+        });
     }
 
     private async summarizeHistory() {

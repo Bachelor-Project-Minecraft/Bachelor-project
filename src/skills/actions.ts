@@ -1,4 +1,4 @@
-import { Skill } from "../types";
+import { JsonValue, Skill } from "../types";
 import { z } from "zod";
 import { GeneratedActionService } from "./generatedActionService";
 
@@ -37,10 +37,21 @@ export const AttackSkill: Skill = {
     }
 };
 
-const UseActionParameters = z.object({
+const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+    z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(JsonValueSchema),
+        z.record(z.string(), JsonValueSchema)
+    ])
+);
+
+export const UseActionParameters = z.object({
     name: z.string().describe('The reusable action name'),
     description: z.string().describe('What the action should do'),
-    args: z.array(z.string()).describe('Ordered string arguments for the action')
+    args: z.array(JsonValueSchema).describe('Ordered JSON arguments for the action')
 });
 
 export const createUseActionSkill = (actionService: GeneratedActionService): Skill => ({
@@ -48,7 +59,11 @@ export const createUseActionSkill = (actionService: GeneratedActionService): Ski
     description: 'Execute a reusable Minecraft action by name, generating and saving it if needed.',
     parameters: UseActionParameters,
     execute: async (bot, args) => {
-        const parsedArgs = UseActionParameters.parse(args);
-        return actionService.useAction(bot, parsedArgs);
+        const parsedArgs = UseActionParameters.safeParse(args);
+        if (!parsedArgs.success) {
+            return '<NO ACTION>: Invalid use_action arguments.';
+        }
+
+        return actionService.useAction(bot, parsedArgs.data);
     }
 });

@@ -97,6 +97,7 @@ export class MinecraftServer {
         const serverDirectory = path.join(__dirname, 'server');
         const worldPath = path.join(serverDirectory, 'world');
         const cleanWorldPath = path.join(serverDirectory, 'world_clean');
+        const skillsPath = path.resolve(process.cwd(), 'src', 'skills', 'SKILLS.json');
 
         try {
             if (!fs.existsSync(cleanWorldPath)) {
@@ -109,6 +110,7 @@ export class MinecraftServer {
             }
 
             fs.cpSync(cleanWorldPath, worldPath, { recursive: true });
+            fs.writeFileSync(skillsPath, '[]', 'utf8');
 
         } catch (error) {
             console.error('Error during world reset:', error);

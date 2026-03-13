@@ -11,8 +11,8 @@ export const config = {
     generationRetries: 3
   },
   ollama: {
-    model: 'qwen3:4b', // Model
-    actionModel: 'qwen3:4b',
+    model: 'qwen3.5:9b', // Model
+    actionModel: 'qwen3.5:9b',
     baseUrl: 'http://127.0.0.1:11434'
   },
   jarName: 'server.jar',

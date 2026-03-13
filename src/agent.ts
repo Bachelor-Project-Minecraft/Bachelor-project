@@ -1,4 +1,5 @@
 import mineflayer, { Bot } from 'mineflayer';
+import { pathfinder } from 'mineflayer-pathfinder';
 import type { Block } from 'prismarine-block';
 import type { Entity } from 'prismarine-entity';
 import { MinecraftServer } from './minecraftServer';
@@ -21,6 +22,7 @@ export class Agent {
             username: config.username,
             auth: config.auth
         });
+        this.bot.loadPlugin(pathfinder);
 
         this.environment = new Environment(this.bot);
         this.isFrozen = false;
