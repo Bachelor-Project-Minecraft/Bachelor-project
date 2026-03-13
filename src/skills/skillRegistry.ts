@@ -1,4 +1,4 @@
-import { JsonValue, JsonValueSchema, Skill, GeneratedSkillDefinition } from "../types";
+import { Skill } from "../types";
 import { Bot } from "mineflayer";
 import { z } from "zod";
 import { AttackSkill, ChatSkill, createUseActionSkill } from "./actions";
@@ -52,26 +52,16 @@ export class SkillRegistry {
     }
 
     public createGeneratedSkill(
-        definition: GeneratedSkillDefinition,
-        executeAction: (bot: Bot, args: JsonValue[]) => Promise<string>
+        name: string,
+        description: string,
+        parameters: z.ZodTypeAny,
+        executeAction: (bot: Bot, args: unknown) => Promise<string>
     ): Skill {
-        const shape = definition.parameters.reduce<Record<string, z.ZodType<JsonValue>>>((result, parameter) => {
-            result[parameter.name] = JsonValueSchema.describe(parameter.description);
-            return result;
-        }, {});
-
         return {
-            name: definition.name,
-            description: definition.description,
-            parameters: z.object(shape),
-            execute: async (bot, args) => {
-                const parsedArgs =
-                    args && typeof args === 'object' && !Array.isArray(args)
-                        ? args as Record<string, JsonValue>
-                        : {};
-                const orderedArgs = definition.parameters.map((parameter) => parsedArgs[parameter.name]);
-                return executeAction(bot, orderedArgs);
-            }
+            name,
+            description,
+            parameters,
+            execute: async (bot, args) => executeAction(bot, args)
         };
     }
 

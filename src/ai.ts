@@ -5,6 +5,7 @@ import { SkillRegistry } from './skills/skillRegistry';
 import { Skill } from './types';
 import { getSummarizeHistoryPrompt, getSystemPrompt, getToolRepairPrompt } from './utils/prompts';
 import { GeneratedActionService } from './skills/generatedActionService';
+import { z } from 'zod';
 
 type ChatMessage = { role: string; content: string };
 
@@ -35,7 +36,8 @@ export class AIController {
         this.registry.initializeBuiltIns(
             new GeneratedActionService(
                 this.ollama,
-                (definition, executeAction) => this.registry.createGeneratedSkill(definition, executeAction),
+                (name, description, parameters, executeAction) =>
+                    this.registry.createGeneratedSkill(name, description, parameters, executeAction),
                 (skill) => this.registry.registerGeneratedSkill(skill)
             )
         );
@@ -218,27 +220,126 @@ export class AIController {
     }
 
     private normalizeToolArguments(skill: Skill, rawArgs: unknown): unknown {
-        if (skill.name !== 'use_action' || !rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
-            return rawArgs;
+        return this.normalizeValueForSchema(skill.parameters, rawArgs);
+    }
+
+    private normalizeValueForSchema(schema: z.ZodTypeAny, rawValue: unknown): unknown {
+        const definition = schema.def as any;
+
+        switch (definition?.type) {
+            case 'optional':
+            case 'nullable':
+            case 'default':
+            case 'catch':
+            case 'readonly':
+            case 'nonoptional':
+                if (rawValue === undefined || rawValue === null) {
+                    return rawValue;
+                }
+
+                return this.normalizeValueForSchema(definition.innerType as z.ZodTypeAny, rawValue);
+            case 'pipe':
+                return this.normalizeValueForSchema(definition.in as z.ZodTypeAny, rawValue);
+            case 'object': {
+                const parsedObject = this.parseStructuredJson(rawValue, 'object');
+                if (!parsedObject || typeof parsedObject !== 'object' || Array.isArray(parsedObject)) {
+                    return parsedObject;
+                }
+
+                const candidate = parsedObject as Record<string, unknown>;
+                const normalizedEntries = Object.entries(definition.shape as Record<string, z.ZodTypeAny>)
+                    .map(([key, childSchema]) => [key, this.normalizeValueForSchema(childSchema, candidate[key])]);
+
+                return {
+                    ...candidate,
+                    ...Object.fromEntries(normalizedEntries)
+                };
+            }
+            case 'array': {
+                const parsedArray = this.parseStructuredJson(rawValue, 'array');
+                if (!Array.isArray(parsedArray)) {
+                    return parsedArray;
+                }
+
+                return parsedArray.map((item) => this.normalizeValueForSchema(definition.element as z.ZodTypeAny, item));
+            }
+            case 'tuple': {
+                const parsedTuple = this.parseStructuredJson(rawValue, 'array');
+                if (!Array.isArray(parsedTuple)) {
+                    return parsedTuple;
+                }
+
+                const items = definition.items as z.ZodTypeAny[];
+                return parsedTuple.map((item, index) => {
+                    const itemSchema = items[index] ?? definition.rest;
+                    return itemSchema ? this.normalizeValueForSchema(itemSchema as z.ZodTypeAny, item) : item;
+                });
+            }
+            case 'record': {
+                const parsedRecord = this.parseStructuredJson(rawValue, 'object');
+                if (!parsedRecord || typeof parsedRecord !== 'object' || Array.isArray(parsedRecord)) {
+                    return parsedRecord;
+                }
+
+                return Object.fromEntries(
+                    Object.entries(parsedRecord as Record<string, unknown>)
+                        .map(([key, value]) => [key, this.normalizeValueForSchema(definition.valueType as z.ZodTypeAny, value)])
+                );
+            }
+            case 'union': {
+                const parsedValue = this.parseStructuredJson(rawValue, 'any');
+                const options = definition.options as z.ZodTypeAny[];
+
+                for (const option of options) {
+                    const normalizedOptionValue = this.normalizeValueForSchema(option, parsedValue);
+                    if (option.safeParse(normalizedOptionValue).success) {
+                        return normalizedOptionValue;
+                    }
+                }
+
+                return parsedValue;
+            }
+            default:
+                return rawValue;
+        }
+    }
+
+    private parseStructuredJson(rawValue: unknown, expectedType: 'object' | 'array' | 'any'): unknown {
+        if (typeof rawValue !== 'string') {
+            return rawValue;
         }
 
-        const candidate = rawArgs as Record<string, unknown>;
-        if (typeof candidate.args !== 'string') {
-            return rawArgs;
+        const trimmedValue = rawValue.trim();
+        if (!trimmedValue) {
+            return rawValue;
         }
 
-        const trimmedArgs = candidate.args.trim();
-        if (!trimmedArgs.startsWith('[') && !trimmedArgs.startsWith('{')) {
-            return rawArgs;
+        if (expectedType === 'object' && !trimmedValue.startsWith('{')) {
+            return rawValue;
+        }
+
+        if (expectedType === 'array' && !trimmedValue.startsWith('[')) {
+            return rawValue;
+        }
+
+        if (expectedType === 'any' && !trimmedValue.startsWith('{') && !trimmedValue.startsWith('[')) {
+            return rawValue;
         }
 
         try {
-            return {
-                ...candidate,
-                args: JSON.parse(trimmedArgs)
-            };
+            const parsedValue = JSON.parse(trimmedValue);
+
+            if (expectedType === 'object' && (!parsedValue || typeof parsedValue !== 'object' || Array.isArray(parsedValue))) {
+                return rawValue;
+            }
+
+            if (expectedType === 'array' && !Array.isArray(parsedValue)) {
+                return rawValue;
+            }
+
+            return parsedValue;
         } catch {
-            return rawArgs;
+            return rawValue;
         }
     }
 

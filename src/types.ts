@@ -9,15 +9,8 @@ export type JsonValue =
     | JsonValue[]
     | { [key: string]: JsonValue };
 
-export interface GeneratedSkillParameterDefinition {
-    name: string;
-    description: string;
-}
-
 export interface GeneratedSkillDefinition {
-    name: string;
-    description: string;
-    parameters: GeneratedSkillParameterDefinition[];
+    parameters: string;
     code: string;
 }
 

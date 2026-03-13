@@ -6,13 +6,13 @@ import * as path from "path";
 import { Vec3 as Vec3Constructor } from "vec3";
 import { z } from "zod";
 import { config } from "../config";
-import { GeneratedSkillDefinition, GeneratedSkillParameterDefinition, JsonValue, Skill } from "../types";
+import { GeneratedSkillDefinition, JsonValue, Skill } from "../types";
 import { getActionGenerationPrompt } from "../utils/prompts";
 
 interface StoredAction {
     name: string;
     description: string;
-    parameters: GeneratedSkillParameterDefinition[];
+    parameters: string;
     code: string;
 }
 
@@ -24,7 +24,7 @@ interface UseActionInput {
 
 type ActionExecutor = (
     bot: Bot,
-    args: JsonValue[],
+    args: unknown,
     Movements: typeof PathfinderMovements,
     goals: typeof PathfinderGoals,
     Vec3: typeof Vec3Constructor
@@ -40,19 +40,15 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as
     ...args: string[]
 ) => ActionExecutor;
 
-const GeneratedSkillParameterSchema = z.object({
+const StoredActionSchema = z.object({
     name: z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/),
-    description: z.string().min(1)
+    description: z.string().min(1),
+    parameters: z.string().min(1),
+    code: z.string().min(1)
 });
 
 const GeneratedSkillDefinitionSchema = z.object({
-    name: z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/),
-    description: z.string().min(1),
-    parameters: z.array(GeneratedSkillParameterSchema)
-        .refine(
-            (parameters) => new Set(parameters.map((parameter) => parameter.name.toLowerCase())).size === parameters.length,
-            'Parameter names must be unique.'
-        ),
+    parameters: z.string().min(1),
     code: z.string().min(1)
 });
 
@@ -64,8 +60,10 @@ export class GeneratedActionService {
     constructor(
         private readonly ollama: Ollama,
         private readonly createGeneratedSkill: (
-            definition: GeneratedSkillDefinition,
-            executeAction: (bot: Bot, args: JsonValue[]) => Promise<string>
+            name: string,
+            description: string,
+            parameters: z.ZodTypeAny,
+            executeAction: (bot: Bot, args: unknown) => Promise<string>
         ) => Skill,
         private readonly registerGeneratedSkill: RegisterGeneratedSkill
     ) {}
@@ -80,6 +78,12 @@ export class GeneratedActionService {
                 continue;
             }
 
+            const compiledParameters = this.compileParameters(generatedDefinition.parameters);
+            if (!compiledParameters) {
+                console.warn(`Generated action "${input.name}" failed schema validation on attempt ${attempt}.`);
+                continue;
+            }
+
             const compiledAction = this.compileAction(generatedDefinition.code);
 
             if (!compiledAction) {
@@ -88,34 +92,48 @@ export class GeneratedActionService {
             }
 
             try {
-                console.log("Started action execution for:", generatedDefinition.name);
-                const result = await this.runAction(compiledAction, bot, input.args);
-                console.log("Finished action execution for:", generatedDefinition.name);
+                const initialArgs = this.mapOrderedArgsToNamedArgs(compiledParameters, input.args);
+                if (!initialArgs) {
+                    console.warn(`Generated action "${input.name}" produced a schema that does not match the provided args on attempt ${attempt}.`);
+                    continue;
+                }
+
+                const parsedInitialArgs = compiledParameters.safeParse(initialArgs);
+                if (!parsedInitialArgs.success) {
+                    console.warn(`Generated action "${input.name}" rejected the provided args on attempt ${attempt}: ${parsedInitialArgs.error.message}`);
+                    continue;
+                }
+
+                console.log("Started action execution for:", input.name);
+                const result = await this.runAction(compiledAction, bot, parsedInitialArgs.data);
+                console.log("Finished action execution for:", input.name);
 
                 const generatedSkill = this.createGeneratedSkill(
-                    generatedDefinition,
+                    input.name,
+                    input.description,
+                    compiledParameters,
                     (runtimeBot, runtimeArgs) => this.runAction(compiledAction, runtimeBot, runtimeArgs)
                 );
                 const registrationResult = this.registerGeneratedSkill(generatedSkill);
                 if (!registrationResult.success) {
-                    console.warn(`Generated action "${generatedDefinition.name}" could not be registered: ${registrationResult.error}`);
+                    console.warn(`Generated action "${input.name}" could not be registered: ${registrationResult.error}`);
                     continue;
                 }
 
                 try {
                     await this.saveAction({
-                        name: generatedDefinition.name,
-                        description: generatedDefinition.description,
+                        name: input.name,
+                        description: input.description,
                         parameters: generatedDefinition.parameters,
                         code: generatedDefinition.code
                     });
-                    console.log("Saved action:", generatedDefinition.name);
+                    console.log("Saved action:", input.name);
                 } catch (error) {
-                    console.error(`Generated action "${generatedDefinition.name}" was registered but could not be written to SKILLS.json:`, error);
+                    console.error(`Generated action "${input.name}" was registered but could not be written to SKILLS.json:`, error);
                 }
                 return result;
             } catch (error) {
-                console.error(`Generated action "${generatedDefinition.name}" failed during execution:`, error);
+                console.error(`Generated action "${input.name}" failed during execution:`, error);
             }
         }
 
@@ -139,6 +157,19 @@ export class GeneratedActionService {
         return this.parseGeneratedSkillDefinition(response.response);
     }
 
+    private compileParameters(schemaSource: string): z.ZodObject<any> | null {
+        if (!/^z\.object\s*\(/.test(schemaSource.trim())) {
+            return null;
+        }
+
+        try {
+            const compiled = new Function('z', `"use strict"; return (${schemaSource});`)(z);
+            return compiled instanceof z.ZodObject ? compiled : null;
+        } catch {
+            return null;
+        }
+    }
+
     private compileAction(code: string): ActionExecutor | null {
         try {
             return new AsyncFunction('bot', 'args', 'Movements', 'goals', 'Vec3', code);
@@ -147,9 +178,26 @@ export class GeneratedActionService {
         }
     }
 
-    private async runAction(action: ActionExecutor, bot: Bot, args: JsonValue[]): Promise<string> {
+    private async runAction(action: ActionExecutor, bot: Bot, args: unknown): Promise<string> {
         const result = await action(bot, args, PathfinderMovements, PathfinderGoals, Vec3Constructor);
         return typeof result === 'string' ? result : String(result);
+    }
+
+    private mapOrderedArgsToNamedArgs(schema: z.ZodObject<any>, args: JsonValue[]): Record<string, JsonValue> | null {
+        const shape = schema.shape;
+        const parameterNames = Object.keys(shape);
+
+        if (args.length > parameterNames.length) {
+            return null;
+        }
+
+        return parameterNames.reduce<Record<string, JsonValue>>((result, parameterName, index) => {
+            if (index < args.length) {
+                result[parameterName] = args[index];
+            }
+
+            return result;
+        }, {});
     }
 
     private async saveAction(newAction: StoredAction): Promise<void> {
@@ -166,7 +214,15 @@ export class GeneratedActionService {
         try {
             const content = await fs.readFile(this.skillsPath, 'utf8');
             const parsed = JSON.parse(content);
-            return Array.isArray(parsed) ? parsed as StoredAction[] : [];
+
+            if (!Array.isArray(parsed)) {
+                return [];
+            }
+
+            return parsed.filter((entry): entry is StoredAction => {
+                const result = StoredActionSchema.safeParse(entry);
+                return result.success;
+            });
         } catch (error) {
             console.warn('Could not load SKILLS.json audit log, starting from an empty list.', error);
             return [];

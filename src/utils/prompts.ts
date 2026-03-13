@@ -65,134 +65,35 @@ Recent conversation:
 Summarize your old memory and recent conversation into a new memory, and respond only with the unwrapped memory text.
 `;
 
-const ACTION_CODE_EXAMPLES = `Use these examples as patterns when they match the task.
+const ACTION_GENERATION_EXAMPLES = `Use these examples as patterns when they match the task.
 
-Example tool call:
-use_action({
-  "name": "GoToPosition",
-  "description": "Walk to a target world position using pathfinder",
-  "args": [{ "x": 5.2, "y": 64, "z": -3.5 }]
-})
-Example body:
-const target = args[0];
-if (!target || typeof target !== 'object' || Array.isArray(target)) {
-  return "<NO TARGET>: Missing position object.";
-}
-if (typeof target.x !== 'number' || typeof target.y !== 'number' || typeof target.z !== 'number') {
-  return "<NO TARGET>: Position must include numeric x, y, z.";
-}
-const movements = new Movements(bot);
-bot.pathfinder.setMovements(movements);
-await bot.pathfinder.goto(
-  new goals.GoalNear(
-    Math.floor(target.x),
-    Math.floor(target.y),
-    Math.floor(target.z),
-    1
-  )
-);
-return "<MOVED>: Reached the target position.";
-
-Example tool call:
-use_action({
-  "name": "FollowPlayer",
-  "description": "Follow a named player with pathfinder",
-  "args": ["MarcusVange", { "distance": 2, "maxTicks": 120 }]
-})
-Example body:
-const playerName = typeof args[0] === 'string' ? args[0] : null;
-const options = args[1] && typeof args[1] === 'object' && !Array.isArray(args[1]) ? args[1] : {};
-if (!playerName) {
-  return "<NO PLAYER>: Missing player name.";
-}
-const target = bot.players[playerName]?.entity;
-if (!target) {
-  return "<NO PLAYER>: Could not find that player.";
-}
-const followDistance = typeof options.distance === 'number' ? options.distance : 2;
-const maxTicks = typeof options.maxTicks === 'number' ? options.maxTicks : 120;
-const movements = new Movements(bot);
-bot.pathfinder.setMovements(movements);
-bot.pathfinder.setGoal(new goals.GoalFollow(target, followDistance), true);
-await new Promise((resolve) => setTimeout(resolve, maxTicks * 50));
-bot.pathfinder.setGoal(null);
-return "<FOLLOWED>: Followed the player.";
-
-Example tool call:
-use_action({
-  "name": "MineBlockAt",
-  "description": "Move to a block and dig it",
-  "args": [{ "x": 10, "y": 63, "z": 4 }]
-})
-Example body:
-const target = args[0];
-if (!target || typeof target !== 'object' || Array.isArray(target)) {
-  return "<NO TARGET>: Missing block position.";
-}
-if (typeof target.x !== 'number' || typeof target.y !== 'number' || typeof target.z !== 'number') {
-  return "<NO TARGET>: Block position must include numeric x, y, z.";
-}
-const blockPosition = new Vec3(
-  Math.floor(target.x),
-  Math.floor(target.y),
-  Math.floor(target.z)
-);
-const block = bot.blockAt(blockPosition);
-if (!block) {
-  return "<NO BLOCK>: Could not find the target block.";
-}
-const movements = new Movements(bot);
-bot.pathfinder.setMovements(movements);
-await bot.pathfinder.goto(new goals.GoalNear(blockPosition.x, blockPosition.y, blockPosition.z, 1));
-const bestTool = bot.pathfinder.bestHarvestTool(block);
-if (bestTool) {
-  await bot.equip(bestTool, 'hand');
-}
-await bot.dig(block);
-return "<MINED>: Broke the target block.";
-
-Example tool call:
-use_action({
-  "name": "PickUpItem",
-  "description": "Move to a dropped item and collect it",
-  "args": ["diamond", { "maxDistance": 24 }]
-})
-Example body:
-const requestedName = typeof args[0] === 'string' ? args[0].toLowerCase() : null;
-const options = args[1] && typeof args[1] === 'object' && !Array.isArray(args[1]) ? args[1] : {};
-const maxDistance = typeof options.maxDistance === 'number' ? options.maxDistance : 24;
-const targetEntity = Object.values(bot.entities)
-  .filter((entity) => entity.type === 'object' && entity.position.distanceTo(bot.entity.position) <= maxDistance)
-  .filter((entity) => {
-    const droppedItem = entity.getDroppedItem();
-    if (!droppedItem) {
-      return false;
-    }
-    if (!requestedName) {
-      return true;
-    }
-    return droppedItem.name.toLowerCase().includes(requestedName);
-  })
-  .sort((left, right) => left.position.distanceTo(bot.entity.position) - right.position.distanceTo(bot.entity.position))[0];
-if (!targetEntity) {
-  return "<NO ITEM>: Could not find a matching dropped item.";
-}
-const movements = new Movements(bot);
-bot.pathfinder.setMovements(movements);
-await bot.pathfinder.goto(new goals.GoalNear(targetEntity.position.x, targetEntity.position.y, targetEntity.position.z, 1));
-return "<PICKED UP>: Moved to the dropped item.";`;
-
-const ACTION_JSON_EXAMPLE = `Example JSON output:
+Example 1
+Input args:
+0: { "x": 10, "y": 63, "z": 4 }
+Output:
 {
-  "name": "GoToPosition",
-  "description": "Walk to a target world position using pathfinder",
-  "parameters": [
-    {
-      "name": "target",
-      "description": "World position object with numeric x, y, and z fields"
-    }
-  ],
-  "code": "const target = args[0];\\nif (!target || typeof target !== 'object' || Array.isArray(target)) {\\n  return \\"<NO TARGET>: Missing position object.\\";\\n}\\nif (typeof target.x !== 'number' || typeof target.y !== 'number' || typeof target.z !== 'number') {\\n  return \\"<NO TARGET>: Position must include numeric x, y, z.\\";\\n}\\nconst movements = new Movements(bot);\\nbot.pathfinder.setMovements(movements);\\nawait bot.pathfinder.goto(new goals.GoalNear(Math.floor(target.x), Math.floor(target.y), Math.floor(target.z), 1));\\nreturn \\"<MOVED>: Reached the target position.\\";"
+  "parameters": "z.object({ position: z.object({ x: z.number().describe('The x coordinate of the target block'), y: z.number().describe('The y coordinate of the target block'), z: z.number().describe('The z coordinate of the target block') }).describe('The x, y and z coordinates for the block to dig') })",
+  "code": "const blockPosition = new Vec3(Math.floor(args.position.x), Math.floor(args.position.y), Math.floor(args.position.z));\\nconst block = bot.blockAt(blockPosition);\\nif (!block) {\\n  return \\"<NO BLOCK>: Could not find the target block.\\";\\n}\\nconst movements = new Movements(bot);\\nbot.pathfinder.setMovements(movements);\\nawait bot.pathfinder.goto(new goals.GoalNear(blockPosition.x, blockPosition.y, blockPosition.z, 1));\\nconst bestTool = bot.pathfinder.bestHarvestTool(block);\\nif (bestTool) {\\n  await bot.equip(bestTool, 'hand');\\n}\\nawait bot.dig(block);\\nreturn \\"<MINED>: Broke the target block.\\";"
+}
+
+Example 2
+Input args:
+0: "MarcusVange"
+1: { "distance": 2, "maxTicks": 120 }
+Output:
+{
+  "parameters": "z.object({ playerName: z.string().describe('The exact Minecraft player name to follow'), options: z.object({ distance: z.number().describe('How close the bot should stay to the player'), maxTicks: z.number().describe('How long to follow before stopping') }).describe('Follow behavior options') })",
+  "code": "const target = bot.players[args.playerName]?.entity;\\nif (!target) {\\n  return \\"<NO PLAYER>: Could not find that player.\\";\\n}\\nconst movements = new Movements(bot);\\nbot.pathfinder.setMovements(movements);\\nbot.pathfinder.setGoal(new goals.GoalFollow(target, args.options.distance), true);\\nawait new Promise((resolve) => setTimeout(resolve, args.options.maxTicks * 50));\\nbot.pathfinder.setGoal(null);\\nreturn \\"<FOLLOWED>: Followed the player.\\";"
+}
+
+Example 3
+Input args:
+0: 6
+1: 3
+Output:
+{
+  "parameters": "z.object({ radius: z.number().describe('How far from the bot to search'), maxTargets: z.number().describe('The maximum number of matches to consider') })",
+  "code": "const nearbyEntities = Object.values(bot.entities).filter((entity) => entity.position.distanceTo(bot.entity.position) <= args.radius);\\nreturn \\"<FOUND>: Considered \\" + Math.min(nearbyEntities.length, args.maxTargets) + \\" nearby entities.\\";"
 }`;
 
 export const ACTION_GENERATION_PROMPT = `You design reusable Mineflayer tools.
@@ -202,30 +103,30 @@ Current args:
 {ACTION_ARGS}
 
 Return exactly one valid JSON object with the fields:
-- name: canonical tool name
-- description: short tool description
-- parameters: ordered array of parameter descriptors with "name" and "description"
+- parameters: a JavaScript string containing a valid root z.object(...) expression
 - code: raw JavaScript body for an async function with runtime signature async (bot, args, Movements, goals, Vec3) => { ... }
 
 Available helpers:
 - bot: a mineflayer bot with bot.pathfinder already loaded
-- args: ordered JSON values
+- args: the validated named argument object created from your z.object schema
 - Movements: the movement class from mineflayer-pathfinder
 - goals: goal constructors from mineflayer-pathfinder
 - Vec3: Vec3 constructor for block positions
+- z: the Zod namespace used inside the parameters string
 Rules:
 - Output valid JSON only, with no markdown fences or explanations
-- The tool name and each parameter name must match ^[A-Za-z][A-Za-z0-9_]*$
-- Keep parameters in the same order as the current args you expect to read from args[index]
+- The parameters string must compile as valid JavaScript and valid Zod
+- The parameters string must start with z.object(...)
+- The top-level z.object properties must appear in the same order as the current args
+- Use descriptive top-level property names like position, playerName, options, radius
+- Add .describe(...) to meaningful fields and nested objects when helpful
 - Do not include imports, TypeScript, or an outer function
-- Use only bot, args, Movements, goals, and Vec3
-- Read inputs from args[index]
+- Use only bot, args, Movements, goals, and Vec3 in code
+- Read inputs from named properties on args, never from args[index]
 - Return a short string describing what happened
 - Use valid JavaScript, not TypeScript
 
-${ACTION_JSON_EXAMPLE}
-
-${ACTION_CODE_EXAMPLES}`;
+${ACTION_GENERATION_EXAMPLES}`;
 
 export const TOOL_REPAIR_PROMPT = `Your previous tool call for "{TOOL_NAME}" was invalid and was not executed.
 Invalid arguments:
@@ -236,6 +137,7 @@ Validation error:
 
 Retry by calling the same tool with corrected JSON arguments only if it is still needed.
 For use_action, always include "name", "description", and "args".
+For structured fields like position or options, pass raw JSON objects and arrays instead of quoted JSON strings.
 Do not wrap arrays or objects in quotes.`;
 
 export const getSummarizeHistoryPrompt = (name: string, oldMemory: string, toSummarize: string) => {
