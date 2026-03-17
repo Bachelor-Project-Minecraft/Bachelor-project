@@ -100,7 +100,7 @@ const UseActionToolParameters: ToolSchema = {
 
 export const createUseActionSkill = (actionService: GeneratedActionService): Skill => ({
     name: 'use_action',
-    description: 'Execute a reusable Minecraft action by name, generating and saving it if needed.',
+    description: 'Create and execute a new Minecraft action',
     parameters: UseActionParameters,
     toolParameters: UseActionToolParameters,
     execute: async (bot, args) => {

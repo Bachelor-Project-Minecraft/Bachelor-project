@@ -31,9 +31,6 @@ export class Agent {
         
         this.initializeEvents();
         this.startSensors();
-        setTimeout(() => {
-            console.log(JSON.stringify(this.observeEnvironment()));
-        }, 5000);
     }
 
     private initializeEvents(): void {
