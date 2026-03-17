@@ -352,17 +352,19 @@ export class AIController {
     }
 
     private async requestChat(messages: ChatMessage[]) {
+        const tools = this.registry.getTools();
         console.log("---------------------------------------------------------------")
         console.log("Available tools for this request:");
-        for (const tool of this.registry.getTools()) {
+        for (const tool of tools) {
             console.log(`- ${tool.function.name}: ${tool.function.description}`);
         }
         console.log("---------------------------------------------------------------")
+
         return this.ollama.chat({
             model: config.ollama.model,
             messages,
-            tools: this.registry.getTools() as any,
-            think: "medium"
+            tools: tools as any,
+            think: "low"
         });
     }
 

@@ -1,7 +1,7 @@
 import { Skill } from "../types";
 import { Bot } from "mineflayer";
 import { z } from "zod";
-import { AttackSkill, ChatSkill, createUseActionSkill } from "./actions";
+import { AttackSkill, ChatSkill, createUseActionSkill, MineBlockSkill } from "./actions";
 import { GeneratedActionService } from "./generatedActionService";
 
 export class SkillRegistry {
@@ -28,6 +28,7 @@ export class SkillRegistry {
 
         this.registerBuiltInSkill(ChatSkill);
         this.registerBuiltInSkill(AttackSkill);
+        this.registerBuiltInSkill(MineBlockSkill);
         this.registerBuiltInSkill(createUseActionSkill(actionService));
         this.builtInsInitialized = true;
     }
@@ -76,16 +77,38 @@ export class SkillRegistry {
     }
 
     public getTools() {
-        return Array.from(this.skills.values()).map(skill => ({
+        const tools = Array.from(this.skills.values()).map((skill) => ({
             type: 'function',
             function: {
                 name: skill.name,
                 description: skill.description,
-                parameters: skill.parameters
-            }
+                parameters: skill.toolParameters ?? this.simplifySchema(z.toJSONSchema(skill.parameters)),
+            },
         }));
+
+        return tools;
     }
 
+    private simplifySchema(value: unknown): unknown {
+        if (Array.isArray(value)) {
+            return value.map(v => this.simplifySchema(v));
+        }
+
+        if (value && typeof value === 'object') {
+            const obj = value as Record<string, unknown>;
+            const out: Record<string, unknown> = {};
+
+            for (const [key, v] of Object.entries(obj)) {
+                if (key === '$schema') continue;
+                if (key === 'additionalProperties') continue;
+                out[key] = this.simplifySchema(v);
+            }
+
+            return out;
+        }
+
+        return value;
+    }
     private registerBuiltInSkill(skill: Skill) {
         this.skills.set(skill.name, skill);
         const normalizedName = this.normalizeName(skill.name);

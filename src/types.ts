@@ -14,6 +14,8 @@ export interface GeneratedSkillDefinition {
     code: string;
 }
 
+export type ToolSchema = Record<string, unknown>;
+
 export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.union([
         z.string(),
@@ -29,5 +31,6 @@ export interface Skill {
     name: string;
     description: string;
     parameters: z.ZodTypeAny;
+    toolParameters?: ToolSchema;
     execute: (bot: Bot, args: any) => Promise<string>;
 }
