@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import { Agent } from './agent';
 import { config } from './config';
 import { MinecraftServer } from './minecraftServer';

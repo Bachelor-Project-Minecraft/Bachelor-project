@@ -1,41 +1,32 @@
-import { Ollama } from 'ollama';
 import { Agent } from './agent';
 import { config } from './config';
+import { LLMClient } from './llmClient';
 import { SkillRegistry } from './skills/skillRegistry';
-import { Skill } from './types';
+import { LlmChatResponse, LlmMessage, LlmToolCall, LlmToolDefinition, Skill } from './types';
 import { getSummarizeHistoryPrompt, getSystemPrompt, getToolRepairPrompt } from './utils/prompts';
 import { GeneratedActionService } from './skills/generatedActionService';
 import { z } from 'zod';
-
-type ChatMessage = { role: string; content: string };
-
-type ToolCall = {
-    function: {
-        name: string;
-        arguments: unknown;
-    };
-};
 
 type ValidationResult =
     | { success: true; data: unknown }
     | { success: false; error: string };
 
 export class AIController {
-    private ollama: Ollama;
+    private llm: LLMClient;
     private agent: Agent;
     private registry: SkillRegistry;
-    private history: ChatMessage[] = [];
+    private history: LlmMessage[] = [];
     private memory: string = ''; // Store summarized memory
     private environmentSnapshot: string = ''; // Store latest environment snapshot
     private isProcessing: boolean = false; // Prevent overlapping thoughts
 
     constructor(agent: Agent) {
         this.agent = agent;
-        this.ollama = new Ollama({ host: config.ollama.baseUrl });
+        this.llm = new LLMClient();
         this.registry = SkillRegistry.getInstance();
         this.registry.initializeBuiltIns(
             new GeneratedActionService(
-                this.ollama,
+                this.llm,
                 (name, description, parameters, executeAction) =>
                     this.registry.createGeneratedSkill(name, description, parameters, executeAction),
                 (skill) => this.registry.registerGeneratedSkill(skill)
@@ -86,15 +77,17 @@ export class AIController {
 
             console.log("Starting AI response generation...");
             const response = await this.requestChat(this.history);
-            const toolCalls = (response.message.tool_calls ?? []) as ToolCall[];
+            const toolCalls = response.toolCalls;
             console.log("Finished AI response generation.");
 
             console.log("---------------------------------------------------------------")
-            console.log("Response message content: " + (response.message.content || "<NO CONTENT>"));
+            console.log("Response message content: " + (response.content || "<NO CONTENT>"));
             for (const tool of toolCalls) {
                 console.log(`Tool call: ${tool.function.name} with args ${JSON.stringify(tool.function.arguments)}`);
             }
             console.log("---------------------------------------------------------------")
+
+            this.recordAssistantResponse(response);
 
             if (toolCalls.length === 0) {
                 console.log("The model decided on no tool calls");
@@ -120,7 +113,9 @@ export class AIController {
 
                 this.history.push({
                     role: 'tool',
-                    content: `Me ${result}`
+                    content: `Me ${result}`,
+                    toolCallId: toolCall.id,
+                    toolName: toolCall.function.name
                 });
             }
         } catch (error) {
@@ -130,7 +125,7 @@ export class AIController {
         }
     }
 
-    private async executeToolCall(toolCall: ToolCall): Promise<string | null> {
+    private async executeToolCall(toolCall: LlmToolCall): Promise<string | null> {
         const skill = this.registry.getSkill(toolCall.function.name);
         if (!skill) {
             return null;
@@ -174,13 +169,13 @@ export class AIController {
                 { role: 'user', content: repairPrompt }
             ]);
 
-            const repairedToolCalls = (repairResponse.message.tool_calls ?? []) as ToolCall[];
+            const repairedToolCalls = repairResponse.toolCalls;
             const repairedToolCall = repairedToolCalls.find(
                 (candidate) => candidate.function.name === skill.name
             );
 
             if (!repairedToolCall) {
-                rawArgs = repairResponse.message.content || rawArgs;
+                rawArgs = repairResponse.content || rawArgs;
                 validation = {
                     success: false,
                     error: `The repair response did not call ${skill.name}.`
@@ -351,8 +346,20 @@ export class AIController {
         }
     }
 
-    private async requestChat(messages: ChatMessage[]) {
-        const tools = this.registry.getTools();
+    private recordAssistantResponse(response: LlmChatResponse) {
+        if (!response.content && response.toolCalls.length === 0) {
+            return;
+        }
+
+        this.history.push({
+            role: 'assistant',
+            content: response.content,
+            toolCalls: response.toolCalls
+        });
+    }
+
+    private async requestChat(messages: LlmMessage[]) {
+        const tools = this.registry.getTools() as LlmToolDefinition[];
         console.log("---------------------------------------------------------------")
         console.log("Available tools for this request:");
         for (const tool of tools) {
@@ -360,11 +367,9 @@ export class AIController {
         }
         console.log("---------------------------------------------------------------")
 
-        return this.ollama.chat({
-            model: config.ollama.model,
+        return this.llm.chat({
             messages,
-            tools: tools as any,
-            think: "low"
+            tools
         });
     }
 
@@ -379,12 +384,11 @@ export class AIController {
             .join('\n');
 
         try {
-            const summary = await this.ollama.generate({
-                model: config.ollama.model,
+            const summary = await this.llm.generate({
                 prompt: getSummarizeHistoryPrompt(this.agent.bot.username, this.memory, toSummarize)
             });
 
-            const updatedMemory = summary.response.trim();
+            const updatedMemory = summary.content.trim();
             if (updatedMemory) {
                 this.memory = updatedMemory;
                 this.updateSystemPromptMemory();

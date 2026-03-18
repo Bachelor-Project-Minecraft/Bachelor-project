@@ -1,11 +1,11 @@
 import { Bot } from "mineflayer";
 import { Movements as PathfinderMovements, goals as PathfinderGoals } from "mineflayer-pathfinder";
-import { Ollama } from "ollama";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { Vec3 as Vec3Constructor } from "vec3";
 import { z } from "zod";
 import { config } from "../config";
+import { LLMClient } from "../llmClient";
 import { GeneratedSkillDefinition, JsonValue, Skill } from "../types";
 import { getActionGenerationPrompt } from "../utils/prompts";
 
@@ -58,7 +58,7 @@ export class GeneratedActionService {
     private readonly skillsPath = path.resolve(process.cwd(), 'src', 'skills', 'SKILLS.json');
 
     constructor(
-        private readonly ollama: Ollama,
+        private readonly llm: LLMClient,
         private readonly createGeneratedSkill: (
             name: string,
             description: string,
@@ -147,14 +147,13 @@ export class GeneratedActionService {
             JSON.stringify(GeneratedSkillDefinitionResponseFormat)
         ].join('\n\n');
 
-        const response = await this.ollama.generate({
-            model: config.ollama.actionModel,
+        const response = await this.llm.generate({
             prompt,
-            format: GeneratedSkillDefinitionResponseFormat,
-            think: false
+            jsonSchema: GeneratedSkillDefinitionResponseFormat,
+            useActionModel: true
         });
 
-        return this.parseGeneratedSkillDefinition(response.response);
+        return this.parseGeneratedSkillDefinition(response.content);
     }
 
     private compileParameters(schemaSource: string): z.ZodObject<any> | null {

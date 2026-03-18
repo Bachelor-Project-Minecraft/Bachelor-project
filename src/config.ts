@@ -1,3 +1,21 @@
+import { LlmModelConfig } from "./types";
+
+const chatModel: LlmModelConfig = {
+  provider: 'ollama',
+  model: 'qwen3.5:9b',
+  reasoning: {
+    effort: 'low' // This is just a default and can be changed when calling the llm
+  }
+};
+
+const actionModel: LlmModelConfig = {
+  provider: 'openrouter',
+  model: 'minimax/minimax-m2.5',
+  reasoning: {
+    effort: 'medium' // This is just a default and can be changed when calling the llm
+  }
+};
+
 export const config = {
   host: 'localhost',
   port: 25565,
@@ -10,10 +28,15 @@ export const config = {
   actions: {
     generationRetries: 3
   },
-  ollama: {
-    model: 'qwen3.5:9b', // Model
-    actionModel: 'qwen3.5:9b',
-    baseUrl: 'http://127.0.0.1:11434'
+  llm: {
+    chat: chatModel,
+    action: actionModel,
+    ollama: {
+      baseUrl: 'http://127.0.0.1:11434'
+    },
+    openRouter: {
+      apiKey: process.env.OPENROUTER_API_KEY ?? ''
+    }
   },
   jarName: 'server.jar',
   minRam: '4G',

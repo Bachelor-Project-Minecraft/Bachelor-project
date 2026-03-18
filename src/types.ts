@@ -16,6 +16,74 @@ export interface GeneratedSkillDefinition {
 
 export type ToolSchema = Record<string, unknown>;
 
+export type LlmProvider = "ollama" | "openrouter";
+
+export type LlmReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+
+export type LlmReasoningSummary = "auto" | "concise" | "detailed";
+
+export interface LlmReasoningConfig {
+    effort?: LlmReasoningEffort;
+    enabled?: boolean;
+    summary?: LlmReasoningSummary;
+    maxTokens?: number;
+}
+
+export interface LlmModelConfig {
+    provider: LlmProvider;
+    model: string;
+    reasoning?: LlmReasoningConfig;
+}
+
+export interface LlmToolDefinition {
+    type: "function";
+    function: {
+        name: string;
+        description?: string;
+        parameters?: ToolSchema;
+    };
+}
+
+export interface LlmToolCall {
+    id: string;
+    function: {
+        name: string;
+        arguments: unknown;
+    };
+}
+
+export interface LlmMessage {
+    role: "system" | "user" | "assistant" | "tool";
+    content: string;
+    toolCallId?: string;
+    toolName?: string;
+    toolCalls?: LlmToolCall[];
+}
+
+export interface LlmChatRequest {
+    messages: LlmMessage[];
+    tools?: LlmToolDefinition[];
+    jsonSchema?: ToolSchema;
+    reasoning?: LlmReasoningConfig;
+    useActionModel?: boolean;
+}
+
+export interface LlmGenerateRequest {
+    prompt: string;
+    jsonSchema?: ToolSchema;
+    reasoning?: LlmReasoningConfig;
+    useActionModel?: boolean;
+}
+
+export interface LlmChatResponse {
+    content: string;
+    toolCalls: LlmToolCall[];
+}
+
+export interface LlmGenerateResponse {
+    content: string;
+}
+
 export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.union([
         z.string(),
