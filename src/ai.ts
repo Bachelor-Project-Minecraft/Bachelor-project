@@ -410,6 +410,8 @@ export class AIController {
         console.log(this.agent.observeEnvironment().nearby.world.directionalBlocks);
         console.log("-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|");
         console.log(this.agent.observeEnvironment().nearby.world.fluids);
+        console.log("-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|");
+        console.log(this.agent.observeEnvironment().nearby.world.surroundingBlocks);
         this.history[0] = {
             role: 'system',
             content: getSystemPrompt(this.agent.bot.username, this.memory, this.environmentSnapshot)

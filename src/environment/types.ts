@@ -45,6 +45,11 @@ export interface SnapshotFluidBlock extends SnapshotBlock {
 	distance: number
 }
 
+export interface SnapshotSurroundingBlock {
+	name: string
+	position: SnapshotPosition
+}
+
 export interface SnapshotInventoryItem {
 	name: string
 	displayName: string
@@ -63,6 +68,7 @@ export interface EnvironmentSnapshot {
 		world: {
 			directionalBlocks: SnapshotDirectionalBlocks
 			fluids: SnapshotFluidBlock[]
+			surroundingBlocks: SnapshotSurroundingBlock[]
 		}
 	}
 	inventory: {

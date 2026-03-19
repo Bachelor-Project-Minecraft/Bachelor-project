@@ -9,6 +9,7 @@ import {
 	type SnapshotDirectionalBlocks,
 	type SnapshotBlock,
 	type SnapshotFluidBlock,
+	type SnapshotSurroundingBlock,
 } from "./types"
 
 export class Environment {
@@ -44,6 +45,7 @@ export class Environment {
 			botEntity.yaw,
 		)
 		const nearbyFluids = this.getNearbyFluids(botPosition, botBlockPosition)
+		const surroundingBlocks = this.getSurroundingBlocks(botBlockPosition)
 
 		const hostiles = nearbyEntities
 			.filter((entity) => entity.type === "hostile")
@@ -125,6 +127,7 @@ export class Environment {
 				world: {
 					directionalBlocks,
 					fluids: nearbyFluids,
+					surroundingBlocks,
 				},
 			},
 			inventory: {
@@ -274,6 +277,71 @@ export class Environment {
 				block.position.z - botBlockPosition.z,
 			),
 		}
+	}
+
+	private getSurroundingBlocks(
+		botBlockPosition: Vec3,
+	): SnapshotSurroundingBlock[] {
+		const layerOffsets = [
+			new Vec3(0, -1, 0),
+			new Vec3(1, -1, 0),
+			new Vec3(1, -1, 1),
+			new Vec3(0, -1, 1),
+			new Vec3(-1, -1, 1),
+			new Vec3(-1, -1, 0),
+			new Vec3(-1, -1, -1),
+			new Vec3(0, -1, -1),
+			new Vec3(1, -1, -1),
+			new Vec3(1, 0, 0),
+			new Vec3(1, 0, 1),
+			new Vec3(0, 0, 1),
+			new Vec3(-1, 0, 1),
+			new Vec3(-1, 0, 0),
+			new Vec3(-1, 0, -1),
+			new Vec3(0, 0, -1),
+			new Vec3(1, 0, -1),
+			new Vec3(1, 1, 0),
+			new Vec3(1, 1, 1),
+			new Vec3(0, 1, 1),
+			new Vec3(-1, 1, 1),
+			new Vec3(-1, 1, 0),
+			new Vec3(-1, 1, -1),
+			new Vec3(0, 1, -1),
+			new Vec3(1, 1, -1),
+			new Vec3(1, 2, 0),
+			new Vec3(1, 2, 1),
+			new Vec3(0, 2, 1),
+			new Vec3(-1, 2, 1),
+			new Vec3(-1, 2, 0),
+			new Vec3(-1, 2, -1),
+			new Vec3(0, 2, -1),
+			new Vec3(1, 2, -1),
+			new Vec3(0, 2, 0)
+		]
+
+		return layerOffsets.flatMap((relativeOffset) => {
+			const blockPosition = botBlockPosition.offset(
+				relativeOffset.x,
+				relativeOffset.y,
+				relativeOffset.z,
+			)
+			const block = this.bot.blockAt(blockPosition)
+
+			if (!block || block.name === "air") {
+				return []
+			}
+
+			return [
+				{
+					name: block.name,
+					position: this.getPosition(
+						blockPosition.x,
+						blockPosition.y,
+						blockPosition.z,
+					),
+				},
+			]
+		})
 	}
 
 	private toSnapshotEntity(
