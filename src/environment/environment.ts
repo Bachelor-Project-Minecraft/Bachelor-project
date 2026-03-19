@@ -190,7 +190,7 @@ export class Environment {
 	}
 
 	private getRelativeDirections(yaw: number) {
-		const facingIndex = ((Math.round(yaw / (Math.PI / 2)) % 4) + 4) % 4
+		const facingIndex = ((Math.round((yaw + Math.PI) / (Math.PI / 2)) % 4) + 4) % 4
 		const forwardByFacing = [
 			new Vec3(0, 0, 1),
 			new Vec3(-1, 0, 0),
