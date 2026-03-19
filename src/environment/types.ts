@@ -20,6 +20,31 @@ export interface SnapshotDroppedItem {
 	position: SnapshotPosition
 }
 
+export interface SnapshotBlock {
+	name: string
+	position: SnapshotPosition
+	relativeOffset: SnapshotPosition
+}
+
+export interface SnapshotDirectionalBlocks {
+	below: SnapshotBlock
+	feet: SnapshotBlock
+	head: SnapshotBlock
+	above: SnapshotBlock
+	front: SnapshotBlock
+	frontRight: SnapshotBlock
+	right: SnapshotBlock
+	backRight: SnapshotBlock
+	back: SnapshotBlock
+	backLeft: SnapshotBlock
+	left: SnapshotBlock
+	frontLeft: SnapshotBlock
+}
+
+export interface SnapshotFluidBlock extends SnapshotBlock {
+	distance: number
+}
+
 export interface SnapshotInventoryItem {
 	name: string
 	displayName: string
@@ -35,6 +60,10 @@ export interface EnvironmentSnapshot {
 		hostiles: SnapshotEntity[]
 		players: SnapshotEntity[]
 		droppedItems: SnapshotDroppedItem[]
+		world: {
+			directionalBlocks: SnapshotDirectionalBlocks
+			fluids: SnapshotFluidBlock[]
+		}
 	}
 	inventory: {
 		totalItems: number

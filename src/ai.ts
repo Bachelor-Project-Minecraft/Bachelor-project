@@ -407,6 +407,9 @@ export class AIController {
 
     private updateSystemPromptEnvironment() {
         this.environmentSnapshot = JSON.stringify(this.agent.observeEnvironment());
+        console.log(this.agent.observeEnvironment().nearby.world.directionalBlocks);
+        console.log("-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|");
+        console.log(this.agent.observeEnvironment().nearby.world.fluids);
         this.history[0] = {
             role: 'system',
             content: getSystemPrompt(this.agent.bot.username, this.memory, this.environmentSnapshot)

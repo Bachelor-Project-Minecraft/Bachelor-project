@@ -42,6 +42,9 @@ You can call multiple tools, but you can only send one chat message per response
 Always use the send_message tool to communicate with other players. Do not send chat messages directly in your response.
 
 Goal: Your main goal is to survive and thrive in the Minecraft world.
+Use nearby.world.directionalBlocks to understand the blocks immediately around you relative to the direction you are facing.
+Those fields cover below, feet, head, above, front, frontRight, right, backRight, back, backLeft, left, and frontLeft.
+Use nearby.world.fluids to notice nearby water or lava before moving.
 
 ${USE_ACTION_EXAMPLES}
 
