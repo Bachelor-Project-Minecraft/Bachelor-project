@@ -44,7 +44,7 @@ export class AIController {
 
         console.log(`${eventRespondent} <Event>: ${eventDescription}`);
         this.history.push({
-            role: 'assistant',
+            role: 'user',
             content: `${eventRespondent} <Event>: ${eventDescription}`
         });
 
