@@ -13,6 +13,8 @@ type ValidationResult =
     | { success: false; error: string };
 
 export class AIController {
+    private static llmRequestQueue: Promise<void> = Promise.resolve();
+
     private llm: LLMClient;
     private agent: Agent;
     private registry: SkillRegistry;
@@ -44,6 +46,7 @@ export class AIController {
 
     public async processEvent(eventRespondent: string, eventDescription: string) {
         if (this.isProcessing) return;
+        this.isProcessing = true;
 
         console.log(`${eventRespondent} <Event>: ${eventDescription}`);
         this.appendMessageToHistory({
@@ -66,22 +69,9 @@ export class AIController {
     }
 
     private async generateResponse() {
-        this.isProcessing = true;
-
-        this.agent.setFreeze(true);
-        this.agent.server.setFreeze(true);
-
         try {
-            this.updateSystemPromptEnvironment();
-
-            if (this.shouldSummarizeHistory()) {
-                await this.summarizeHistory();
-            }
-
-            console.log("Starting AI response generation...");
-            const response = await this.requestChat(this.history);
+            const response = await this.generateQueuedResponse();
             const toolCalls = response.toolCalls;
-            console.log("Finished AI response generation.");
 
             console.log("---------------------------------------------------------------")
             console.log("Response message content: " + (response.content || "<NO CONTENT>"));
@@ -99,14 +89,8 @@ export class AIController {
                 console.log(this.history)
                 console.log("---------------------------------------------------------------")
 
-                this.agent.setFreeze(false);
-                this.agent.server.setFreeze(false);
-
                 return;
             }
-
-            this.agent.setFreeze(false);
-            this.agent.server.setFreeze(false);
 
             for (const toolCall of toolCalls) {
                 const result = await this.executeToolCall(toolCall);
@@ -125,6 +109,44 @@ export class AIController {
             console.error('AI Error:', error);
         } finally {
             this.isProcessing = false;
+        }
+    }
+
+    private async generateQueuedResponse(): Promise<LlmChatResponse> {
+        const previousRequest = AIController.llmRequestQueue;
+        let releaseMutex!: () => void;
+
+        AIController.llmRequestQueue = new Promise<void>((resolve) => {
+            releaseMutex = resolve;
+        });
+
+        await previousRequest;
+
+        let isWorldFrozen = false;
+
+        try {
+            console.log(this.agent.bot.username + " is freezing the world");
+            this.agent.server.setFreeze(true);
+            isWorldFrozen = true;
+
+            this.updateSystemPromptEnvironment();
+
+            if (this.shouldSummarizeHistory()) {
+                await this.summarizeHistory();
+            }
+
+            console.log("Starting AI response generation...");
+            const response = await this.requestChat(this.history);
+            console.log("Finished AI response generation.");
+
+            return response;
+        } finally {
+            if (isWorldFrozen) {
+                console.log(this.agent.bot.username + " is unfreezing the world");
+                this.agent.server.setFreeze(false);
+            }
+
+            releaseMutex();
         }
     }
 
@@ -415,11 +437,6 @@ export class AIController {
 
     private updateSystemPromptEnvironment() {
         this.environmentSnapshot = JSON.stringify(this.agent.observeEnvironment());
-        console.log(this.agent.observeEnvironment().nearby.world.directionalBlocks);
-        console.log("-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|");
-        console.log(this.agent.observeEnvironment().nearby.world.fluids);
-        console.log("-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|");
-        console.log(this.agent.observeEnvironment().nearby.world.surroundingBlocks);
         this.history[0] = {
             role: 'system',
             content: getSystemPrompt(this.agent.bot.username, this.memory, this.environmentSnapshot)

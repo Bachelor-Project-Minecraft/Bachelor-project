@@ -28,15 +28,37 @@ export const AttackSkill: Skill = {
     description: 'Attack the nearest hostile entity within range.',
     parameters: z.object({}),
     execute: async (bot) => {
-        const enemy = bot.nearestEntity(e => e.type === 'hostile' && e.position.distanceTo(bot.entity.position) < 5);
+        const pvp = bot.pvp;
+        const maxTargetDistance = 16;
+
+        const isValidHostileTarget = (entity: typeof pvp.target | null | undefined): entity is NonNullable<typeof pvp.target> => {
+            return Boolean(
+                entity
+                && entity.isValid
+                && entity.type === 'hostile'
+                && entity.position.distanceTo(bot.entity.position) <= maxTargetDistance
+            );
+        };
+
+        const currentTarget = pvp.target;
+        const enemy = isValidHostileTarget(currentTarget)
+            ? currentTarget
+            : bot.nearestEntity((entity) => (
+                entity.type === 'hostile'
+                && entity.isValid
+                && entity.position.distanceTo(bot.entity.position) <= maxTargetDistance
+            ));
 
         if (!enemy) {
             return "<NO ENEMIES>: No enemies nearby to attack.";
         }
 
-        bot.lookAt(enemy.position.offset(0, enemy.height, 0));
-        bot.attack(enemy);
-        return `<ATTACKED>: ${enemy.name}!`;
+        if (currentTarget && currentTarget.id !== enemy.id) {
+            pvp.stop();
+        }
+
+        pvp.attack(enemy);
+        return `<ATTACKING>: Engaging ${enemy.name ?? 'hostile mob'} until it is no longer a threat.`;
     }
 };
 

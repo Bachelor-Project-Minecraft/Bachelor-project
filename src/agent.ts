@@ -1,5 +1,6 @@
 import mineflayer, { Bot } from 'mineflayer';
 import { pathfinder } from 'mineflayer-pathfinder';
+import { plugin } from 'mineflayer-pvp';
 import type { Block } from 'prismarine-block';
 import type { Entity } from 'prismarine-entity';
 import { MinecraftServer } from './minecraftServer';
@@ -16,20 +17,22 @@ export class Agent {
     public isFrozen: boolean;
     public isAlive: boolean;
 
-    constructor(server: MinecraftServer, name: string) {
+    constructor(server: MinecraftServer, username: string) {
         this.bot = mineflayer.createBot({
             host: config.host,
             port: config.port,
-            username: name,
+            username,
             auth: config.auth
         });
         this.bot.loadPlugin(pathfinder);
+        this.bot.loadPlugin(plugin);
 
         this.environment = new Environment(this.bot);
         this.isFrozen = false;
         this.isAlive = false;
         this.server = server;
-        this.ai = new AIController(this, name);
+        this.server.registerAgent(this);
+        this.ai = new AIController(this, username);
         
         this.initializeEvents();
         this.startSensors();
@@ -46,7 +49,6 @@ export class Agent {
         });
 
         this.bot.on('chat', (username, message) => {
-            if (username === this.bot.username || username === 'Server') return;
             this.ai.processChat(username, message);
         });
 
@@ -70,6 +72,7 @@ export class Agent {
 
     private startSensors() {
         setInterval(() => {
+            if(this.isFrozen) return;
             this.checkForDanger();
         }, 2000);
     }
@@ -161,11 +164,6 @@ export class Agent {
     }
 
     public setFreeze(freeze: boolean): void {
-        if (freeze) {
-            console.log('Freezing bot...');
-        } else {
-            console.log('Unfreezing bot...');
-        }
         this.isFrozen = freeze;
         this.bot.physicsEnabled = !freeze;
     }
