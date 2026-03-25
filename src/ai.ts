@@ -6,6 +6,7 @@ import { LlmChatResponse, LlmMessage, LlmToolCall, LlmToolDefinition, Skill } fr
 import { getSummarizeHistoryPrompt, getSystemPrompt, getToolRepairPrompt } from './utils/prompts';
 import { GeneratedActionService } from './skills/generatedActionService';
 import { z } from 'zod';
+import { AgentLogStore } from './evolution/agentLogStore';
 
 type ValidationResult =
     | { success: true; data: unknown }
@@ -16,11 +17,12 @@ export class AIController {
     private agent: Agent;
     private registry: SkillRegistry;
     private history: LlmMessage[] = [];
+    private log: AgentLogStore;
     private memory: string = ''; // Store summarized memory
     private environmentSnapshot: string = ''; // Store latest environment snapshot
     private isProcessing: boolean = false; // Prevent overlapping thoughts
 
-    constructor(agent: Agent) {
+    constructor(agent: Agent, agentName: string) {
         this.agent = agent;
         this.llm = new LLMClient();
         this.registry = SkillRegistry.getInstance();
@@ -32,10 +34,11 @@ export class AIController {
                 (skill) => this.registry.registerGeneratedSkill(skill)
             )
         );
+        this.log = new AgentLogStore(agentName, () => this.agent.isAlive);
 
         this.history.push({
             role: 'system',
-            content: getSystemPrompt(this.agent.bot.username, this.memory, this.environmentSnapshot)
+            content: getSystemPrompt(agentName, this.memory, this.environmentSnapshot)
         });
     }
 
@@ -43,7 +46,7 @@ export class AIController {
         if (this.isProcessing) return;
 
         console.log(`${eventRespondent} <Event>: ${eventDescription}`);
-        this.history.push({
+        this.appendMessageToHistory({
             role: 'user',
             content: `${eventRespondent} <Event>: ${eventDescription}`
         });
@@ -57,7 +60,7 @@ export class AIController {
 
         const role = 'user';
         const content = `${sender} <MESSAGE>: ${message}`;
-        this.history.push({ role, content });
+        this.appendMessageToHistory({ role, content });
 
         await this.generateResponse();
     }
@@ -111,7 +114,7 @@ export class AIController {
                     continue;
                 }
 
-                this.history.push({
+                this.appendMessageToHistory({
                     role: 'tool',
                     content: `Me ${result}`,
                     toolCallId: toolCall.id,
@@ -346,12 +349,17 @@ export class AIController {
         }
     }
 
+    private appendMessageToHistory(message: LlmMessage): void {
+        this.history.push(message);
+        this.log.appendMessage(message);
+    }
+
     private recordAssistantResponse(response: LlmChatResponse) {
         if (!response.content && response.toolCalls.length === 0) {
             return;
         }
 
-        this.history.push({
+        this.appendMessageToHistory({
             role: 'assistant',
             content: response.content,
             toolCalls: response.toolCalls

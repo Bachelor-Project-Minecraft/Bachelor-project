@@ -16,7 +16,8 @@ async function main() {
         });
         server.sendCommand('gamerule send_command_feedback false');
 
-        const agent = new Agent(server);
+        const agents = config.agents.map((agentName) => new Agent(server, agentName));
+        void agents;
     } catch (error) {
         console.error('Failed to boot Minecraft server:', error);
     }

@@ -19,7 +19,7 @@ const actionModel: LlmModelConfig = {
 export const config = {
   host: 'localhost',
   port: 25565,
-  username: 'Bot',
+  agents: ['Bot'],
   auth: 'offline' as const,
   ai: {
     maxHistoryMessages: 15,

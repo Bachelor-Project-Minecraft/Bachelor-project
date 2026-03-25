@@ -14,28 +14,35 @@ export class Agent {
     private environment: Environment;
     public server: MinecraftServer;
     public isFrozen: boolean;
+    public isAlive: boolean;
 
-    constructor(server: MinecraftServer) {
+    constructor(server: MinecraftServer, name: string) {
         this.bot = mineflayer.createBot({
             host: config.host,
             port: config.port,
-            username: config.username,
+            username: name,
             auth: config.auth
         });
         this.bot.loadPlugin(pathfinder);
 
         this.environment = new Environment(this.bot);
         this.isFrozen = false;
+        this.isAlive = false;
         this.server = server;
-        this.ai = new AIController(this);
+        this.ai = new AIController(this, name);
         
         this.initializeEvents();
         this.startSensors();
     }
 
     private initializeEvents(): void {
-        this.bot.once('spawn', () => {
+        this.bot.on('spawn', () => {
+            this.isAlive = true;
             console.log(`Mineflayer bot spawned as ${this.bot.username}`);
+        });
+
+        this.bot.on('death', () => {
+            this.isAlive = false;
         });
 
         this.bot.on('chat', (username, message) => {
@@ -52,6 +59,9 @@ export class Agent {
 
         this.bot.on('error', (err) => console.log('Error:', err));
         this.bot.on('kicked', (reason) => console.log('Kicked:', reason));
+        this.bot.on('end', () => {
+            this.isAlive = false;
+        });
     }
 
     public observeEnvironment() {

@@ -1,0 +1,94 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import { LlmMessage } from '../types';
+
+interface AgentLogRecord {
+    agentName: string;
+    startedAt: string;
+    lastUpdatedAt: string;
+    survivedMs: number;
+    messages: LlmMessage[];
+}
+
+export class AgentLogStore {
+    private static stores: Set<AgentLogStore> = new Set();
+    private static hooksRegistered = false;
+
+    private readonly startedAtMs: number;
+    private readonly filePath: string;
+    private readonly isAgentAlive: () => boolean;
+    private readonly record: AgentLogRecord;
+
+    constructor(agentName: string, isAgentAlive: () => boolean) {
+        this.startedAtMs = Date.now();
+        this.isAgentAlive = isAgentAlive;
+        this.filePath = path.resolve(process.cwd(), 'src', 'evolution', 'logs', `${agentName}.json`);
+
+        const startedAt = new Date(this.startedAtMs).toISOString();
+        this.record = {
+            agentName,
+            startedAt,
+            lastUpdatedAt: startedAt,
+            survivedMs: 0,
+            messages: []
+        };
+
+        this.ensureLogDirectory();
+        this.writeRecord();
+
+        AgentLogStore.stores.add(this);
+        AgentLogStore.registerShutdownHooks();
+    }
+
+    public appendMessage(message: LlmMessage): void {
+        if (message.role === 'system') {
+            return;
+        }
+
+        this.record.messages.push(this.cloneMessage(message));
+        this.writeRecord();
+    }
+
+    public flushSurvivalTimeOnShutdown(): void {
+        if (!this.isAgentAlive()) {
+            return;
+        }
+
+        this.writeRecord();
+    }
+
+    private ensureLogDirectory(): void {
+        fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    }
+
+    private writeRecord(): void {
+        const now = Date.now();
+        this.record.lastUpdatedAt = new Date(now).toISOString();
+        this.record.survivedMs = now - this.startedAtMs;
+        fs.writeFileSync(this.filePath, JSON.stringify(this.record, null, 2), 'utf8');
+    }
+
+    private cloneMessage(message: LlmMessage): LlmMessage {
+        return JSON.parse(JSON.stringify(message)) as LlmMessage;
+    }
+
+    private static registerShutdownHooks(): void {
+        if (AgentLogStore.hooksRegistered) {
+            return;
+        }
+
+        AgentLogStore.hooksRegistered = true;
+
+        process.on('SIGINT', AgentLogStore.handleSignal);
+        process.on('SIGTERM', AgentLogStore.handleSignal);
+    }
+
+    private static handleSignal = (signal: NodeJS.Signals): void => {
+        for (const store of AgentLogStore.stores) {
+            store.flushSurvivalTimeOnShutdown();
+        }
+
+        process.removeListener(signal, AgentLogStore.handleSignal);
+        process.kill(process.pid, signal);
+    };
+}
