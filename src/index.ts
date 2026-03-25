@@ -16,7 +16,8 @@ async function main() {
         });
         server.sendCommand('gamerule send_command_feedback false');
 
-        const agent = new Agent(server);
+        server.registerAgent(new Agent(server, 'Bot1'));
+        server.registerAgent(new Agent(server, 'Bot2'));
     } catch (error) {
         console.error('Failed to boot Minecraft server:', error);
     }

@@ -2,6 +2,7 @@ import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import * as path from 'path';
 import { config } from './config';
 import * as fs from 'fs';
+import { Agent } from './agent';
 
 export class MinecraftServer {
     private serverProcess: ChildProcessWithoutNullStreams | null = null;
@@ -11,6 +12,7 @@ export class MinecraftServer {
     private maxRam: string;
 
     public isFrozen: Boolean;
+    public agents: Set<Agent> = new Set();
 
     constructor() {
         this.port = config.port;
@@ -76,14 +78,22 @@ export class MinecraftServer {
         this.sendCommand('stop');
     }
 
+    public registerAgent(agent: Agent): void {
+        this.agents.add(agent);
+    }
+
     public setFreeze(freeze: boolean): void {
         if (freeze) {
-            console.log('Freezing world...');
             this.isFrozen = true;
+            this.agents.forEach((agent) => {
+                agent.setFreeze(true);
+            })
             this.sendCommand('tick freeze');
         } else {
-            console.log('Unfreezing world...');
             this.isFrozen = false;
+            this.agents.forEach((agent) => {
+                agent.setFreeze(false);
+            })
             this.sendCommand('tick unfreeze');
         }
     }

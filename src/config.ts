@@ -4,7 +4,7 @@ const chatModel: LlmModelConfig = {
   provider: 'ollama',
   model: 'qwen3.5:9b',
   reasoning: {
-    effort: 'low' // This is just a default and can be changed when calling the llm
+    effort: 'high' // This is just a default and can be changed when calling the llm
   }
 };
 
@@ -19,7 +19,6 @@ const actionModel: LlmModelConfig = {
 export const config = {
   host: 'localhost',
   port: 25565,
-  username: 'Bot',
   auth: 'offline' as const,
   ai: {
     maxHistoryMessages: 15,

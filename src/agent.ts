@@ -1,5 +1,6 @@
 import mineflayer, { Bot } from 'mineflayer';
 import { pathfinder } from 'mineflayer-pathfinder';
+import { plugin } from 'mineflayer-pvp';
 import type { Block } from 'prismarine-block';
 import type { Entity } from 'prismarine-entity';
 import { MinecraftServer } from './minecraftServer';
@@ -15,14 +16,15 @@ export class Agent {
     public server: MinecraftServer;
     public isFrozen: boolean;
 
-    constructor(server: MinecraftServer) {
+    constructor(server: MinecraftServer, username: string) {
         this.bot = mineflayer.createBot({
             host: config.host,
             port: config.port,
-            username: config.username,
+            username,
             auth: config.auth
         });
         this.bot.loadPlugin(pathfinder);
+        this.bot.loadPlugin(plugin);
 
         this.environment = new Environment(this.bot);
         this.isFrozen = false;
@@ -39,7 +41,6 @@ export class Agent {
         });
 
         this.bot.on('chat', (username, message) => {
-            if (username === this.bot.username || username === 'Server') return;
             this.ai.processChat(username, message);
         });
 
@@ -60,6 +61,7 @@ export class Agent {
 
     private startSensors() {
         setInterval(() => {
+            if(this.isFrozen) return;
             this.checkForDanger();
         }, 2000);
     }
@@ -151,11 +153,6 @@ export class Agent {
     }
 
     public setFreeze(freeze: boolean): void {
-        if (freeze) {
-            console.log('Freezing bot...');
-        } else {
-            console.log('Unfreezing bot...');
-        }
         this.isFrozen = freeze;
         this.bot.physicsEnabled = !freeze;
     }

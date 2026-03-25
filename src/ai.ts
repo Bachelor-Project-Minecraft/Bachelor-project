@@ -12,6 +12,8 @@ type ValidationResult =
     | { success: false; error: string };
 
 export class AIController {
+    private static llmRequestQueue: Promise<void> = Promise.resolve();
+
     private llm: LLMClient;
     private agent: Agent;
     private registry: SkillRegistry;
@@ -44,7 +46,7 @@ export class AIController {
 
         console.log(`${eventRespondent} <Event>: ${eventDescription}`);
         this.history.push({
-            role: 'assistant',
+            role: 'user',
             content: `${eventRespondent} <Event>: ${eventDescription}`
         });
 
@@ -63,9 +65,15 @@ export class AIController {
     }
 
     private async generateResponse() {
+        await AIController.llmRequestQueue;
+        let releaseMutex!: () => void;
+        AIController.llmRequestQueue = new Promise(resolve => {
+            releaseMutex = resolve;
+        });
+
+        console.log(this.agent.bot.username + " is freezing the world")
         this.isProcessing = true;
 
-        this.agent.setFreeze(true);
         this.agent.server.setFreeze(true);
 
         try {
@@ -96,13 +104,13 @@ export class AIController {
                 console.log(this.history)
                 console.log("---------------------------------------------------------------")
 
-                this.agent.setFreeze(false);
+                console.log(this.agent.bot.username + " is unfreezing the world")
                 this.agent.server.setFreeze(false);
 
                 return;
             }
 
-            this.agent.setFreeze(false);
+            console.log(this.agent.bot.username + " is unfreezing the world")
             this.agent.server.setFreeze(false);
 
             for (const toolCall of toolCalls) {
@@ -122,6 +130,7 @@ export class AIController {
             console.error('AI Error:', error);
         } finally {
             this.isProcessing = false;
+            releaseMutex();
         }
     }
 
