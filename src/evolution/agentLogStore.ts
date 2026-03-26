@@ -71,6 +71,10 @@ export class AgentLogStore {
         return path.resolve(process.cwd(), 'src', 'evolution', 'logs');
     }
 
+    private static getGenerationsFilePath(): string {
+        return path.resolve(process.cwd(), 'src', 'evolution', 'generations.txt');
+    }
+
     private writeRecord(): void {
         const now = Date.now();
         this.record.lastUpdatedAt = new Date(now).toISOString();
@@ -93,10 +97,28 @@ export class AgentLogStore {
         process.on('SIGTERM', AgentLogStore.handleSignal);
     }
 
+    private static appendGenerationSummary(): void {
+        const filePath = AgentLogStore.getGenerationsFilePath();
+        const line = Array.from(AgentLogStore.stores)
+            .map((store) => `${store.record.agentName}: ${store.record.survivedMs}`)
+            .join(', ');
+
+        if (!line) {
+            return;
+        }
+
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        const existingContent = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8').trim() : '';
+        const nextContent = existingContent ? `${existingContent}\n${line}` : line;
+        fs.writeFileSync(filePath, nextContent, 'utf8');
+    }
+
     private static handleSignal = (signal: NodeJS.Signals): void => {
         for (const store of AgentLogStore.stores) {
             store.flushSurvivalTimeOnShutdown();
         }
+
+        AgentLogStore.appendGenerationSummary();
 
         process.removeListener(signal, AgentLogStore.handleSignal);
         process.kill(process.pid, signal);
