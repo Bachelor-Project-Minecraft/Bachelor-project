@@ -46,6 +46,7 @@ export class Agent {
 
         this.bot.on('death', () => {
             this.isAlive = false;
+            this.bot.quit();
         });
 
         this.bot.on('chat', (username, message) => {
