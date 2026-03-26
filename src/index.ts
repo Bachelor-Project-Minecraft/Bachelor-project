@@ -2,12 +2,14 @@ import "dotenv/config";
 
 import { Agent } from './agent';
 import { config } from './config';
+import { AgentLogStore } from './evolution/agentLogStore';
 import { MinecraftServer } from './minecraftServer';
 
 async function main() {
     const server = new MinecraftServer();
     
     try {
+        AgentLogStore.resetLogsDirectory();
         server.resetWorld();
         await server.start();
 

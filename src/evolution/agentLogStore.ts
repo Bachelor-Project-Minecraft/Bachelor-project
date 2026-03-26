@@ -22,7 +22,7 @@ export class AgentLogStore {
     constructor(agentName: string, isAgentAlive: () => boolean) {
         this.startedAtMs = Date.now();
         this.isAgentAlive = isAgentAlive;
-        this.filePath = path.resolve(process.cwd(), 'src', 'evolution', 'logs', `${agentName}.json`);
+        this.filePath = path.join(AgentLogStore.getLogsDirectory(), `${agentName}.json`);
 
         const startedAt = new Date(this.startedAtMs).toISOString();
         this.record = {
@@ -38,6 +38,12 @@ export class AgentLogStore {
 
         AgentLogStore.stores.add(this);
         AgentLogStore.registerShutdownHooks();
+    }
+
+    public static resetLogsDirectory(): void {
+        const logsDirectory = AgentLogStore.getLogsDirectory();
+        fs.rmSync(logsDirectory, { recursive: true, force: true });
+        fs.mkdirSync(logsDirectory, { recursive: true });
     }
 
     public appendMessage(message: LlmMessage): void {
@@ -59,6 +65,10 @@ export class AgentLogStore {
 
     private ensureLogDirectory(): void {
         fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    }
+
+    private static getLogsDirectory(): string {
+        return path.resolve(process.cwd(), 'src', 'evolution', 'logs');
     }
 
     private writeRecord(): void {
