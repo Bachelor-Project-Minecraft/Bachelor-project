@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { LlmMessage } from '../types';
 
-interface AgentLogRecord {
+export interface AgentLogRecord {
     agentName: string;
     startedAt: string;
     lastUpdatedAt: string;

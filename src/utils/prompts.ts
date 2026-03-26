@@ -52,10 +52,32 @@ Each surroundingBlocks entry only contains the block name and world position.
 
 Goal: Your main goal is to survive and thrive in the Minecraft world.
 
+{KNOWLEDGEBASE_SECTION}
+
 Memory: {MEMORY}
 
 The following shows your current environment.
 Environment Snapshot: {ENVIRONMENT_SNAPSHOT}`;
+
+export const KNOWLEDGEBASE_UPDATE_PROMPT = `You are updating a short inherited knowledgebase for a new generation of Minecraft survival agents.
+Your goal is to pass on only the most important lessons that could help the next generation survive longer.
+Keep the knowledgebase short, concrete, and actionable.
+Prefer survival advice, coordination advice, and things to avoid.
+If there is already a knowledgebase, improve it instead of replacing good advice for no reason.
+Do not mention generations, averages, or comparisons in the final knowledgebase.
+Return only the final knowledgebase text with no introduction or markdown fences.
+
+Current knowledgebase:
+{CURRENT_KNOWLEDGEBASE}
+
+Generation comparison:
+{GENERATION_COMPARISON}
+
+Longest-surviving agent ({LONGEST_SURVIVAL_MS} ms) log:
+{LONGEST_LOG}
+
+Shortest-surviving agent ({SHORTEST_SURVIVAL_MS} ms) log:
+{SHORTEST_LOG}`;
 
 export const SUMMARIZE_HISTORY_PROMPT = `You are a minecraft bot named {NAME} that has been talking and playing minecraft by using commands. Update your memory by summarizing the following conversation and your old memory in your next response. Prioritize preserving important facts, things you've learned, useful tips, and long term reminders. Do Not record stats, inventory, or docs! Only save transient information from your chat history. You're limited to 500 characters, so be brief, however not so brief that you lose important information.
 Old Memory: '{OLD_MEMORY}'
@@ -161,14 +183,35 @@ export const getActionGenerationPrompt = (name: string, description: string, arg
         .replace('{ACTION_ARGS}', argsText);
 };
 
-export const getSystemPrompt = (name: string, memory: string, environmentSnapshot: string) => {
+export const getSystemPrompt = (name: string, memory: string, environmentSnapshot: string, knowledgebase: string = '') => {
     const memoryText = memory || 'No memory yet.';
     const environmentText = environmentSnapshot || 'No snapshot yet.';
+    const knowledgebaseText = knowledgebase.trim()
+        ? `Inherited Knowledgebase: ${knowledgebase.trim()}`
+        : '';
 
     return SYSTEM_PROMPT
         .replace('{NAME}', name)
+        .replace('{KNOWLEDGEBASE_SECTION}', knowledgebaseText)
         .replace('{MEMORY}', memoryText)
         .replace('{ENVIRONMENT_SNAPSHOT}', environmentText);
+};
+
+export const getKnowledgebaseUpdatePrompt = (
+    currentKnowledgebase: string,
+    generationComparison: string,
+    longestSurvivalMs: number,
+    longestLog: string,
+    shortestSurvivalMs: number,
+    shortestLog: string
+) => {
+    return KNOWLEDGEBASE_UPDATE_PROMPT
+        .replace('{CURRENT_KNOWLEDGEBASE}', currentKnowledgebase || 'No existing knowledgebase yet.')
+        .replace('{GENERATION_COMPARISON}', generationComparison)
+        .replace('{LONGEST_SURVIVAL_MS}', String(longestSurvivalMs))
+        .replace('{LONGEST_LOG}', longestLog || 'No log messages available.')
+        .replace('{SHORTEST_SURVIVAL_MS}', String(shortestSurvivalMs))
+        .replace('{SHORTEST_LOG}', shortestLog || 'No log messages available.');
 };
 
 export const getToolRepairPrompt = (toolName: string, attemptedArgs: string, validationError: string) => {

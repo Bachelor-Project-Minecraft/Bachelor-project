@@ -3,12 +3,14 @@ import "dotenv/config";
 import { Agent } from './agent';
 import { config } from './config';
 import { AgentLogStore } from './evolution/agentLogStore';
+import { Evolution } from './evolution/evolution';
 import { MinecraftServer } from './minecraftServer';
 
 async function main() {
     const server = new MinecraftServer();
     
     try {
+        await Evolution.updateKnowledgebase();
         AgentLogStore.resetLogsDirectory();
         server.resetWorld();
         await server.start();

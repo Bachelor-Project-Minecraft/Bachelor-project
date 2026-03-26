@@ -7,6 +7,7 @@ import { getSummarizeHistoryPrompt, getSystemPrompt, getToolRepairPrompt } from 
 import { GeneratedActionService } from './skills/generatedActionService';
 import { z } from 'zod';
 import { AgentLogStore } from './evolution/agentLogStore';
+import { Evolution } from './evolution/evolution';
 
 type ValidationResult =
     | { success: true; data: unknown }
@@ -20,6 +21,7 @@ export class AIController {
     private registry: SkillRegistry;
     private history: LlmMessage[] = [];
     private log: AgentLogStore;
+    private readonly knowledgebase: string;
     private memory: string = ''; // Store summarized memory
     private environmentSnapshot: string = ''; // Store latest environment snapshot
     private isProcessing: boolean = false; // Prevent overlapping thoughts
@@ -37,10 +39,11 @@ export class AIController {
             )
         );
         this.log = new AgentLogStore(agentName, () => this.agent.isAlive);
+        this.knowledgebase = Evolution.getKnowledgebase();
 
         this.history.push({
             role: 'system',
-            content: getSystemPrompt(agentName, this.memory, this.environmentSnapshot)
+            content: getSystemPrompt(agentName, this.memory, this.environmentSnapshot, this.knowledgebase)
         });
     }
 
@@ -439,14 +442,14 @@ export class AIController {
         this.environmentSnapshot = JSON.stringify(this.agent.observeEnvironment());
         this.history[0] = {
             role: 'system',
-            content: getSystemPrompt(this.agent.bot.username, this.memory, this.environmentSnapshot)
+            content: getSystemPrompt(this.agent.bot.username, this.memory, this.environmentSnapshot, this.knowledgebase)
         };
     }
 
     private updateSystemPromptMemory() {
         this.history[0] = {
             role: 'system',
-            content: getSystemPrompt(this.agent.bot.username, this.memory, this.environmentSnapshot)
+            content: getSystemPrompt(this.agent.bot.username, this.memory, this.environmentSnapshot, this.knowledgebase)
         };
     }
 }
