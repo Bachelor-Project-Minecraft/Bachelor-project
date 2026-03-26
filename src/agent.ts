@@ -49,6 +49,7 @@ export class Agent {
         });
 
         this.bot.on('chat', (username, message) => {
+            if (username === this.bot.username) return;
             this.ai.processChat(username, message);
         });
 
