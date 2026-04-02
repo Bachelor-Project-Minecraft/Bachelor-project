@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { LlmMessage } from '../types';
+import { getRuntimePath } from '../utils/util';
 
 export interface AgentLogRecord {
     agentName: string;
@@ -68,11 +69,11 @@ export class AgentLogStore {
     }
 
     private static getLogsDirectory(): string {
-        return path.resolve(process.cwd(), 'src', 'evolution', 'logs');
+        return getRuntimePath('evolution', 'logs');
     }
 
     private static getGenerationsFilePath(): string {
-        return path.resolve(process.cwd(), 'src', 'evolution', 'generations.txt');
+        return getRuntimePath('evolution', 'generations.txt');
     }
 
     private writeRecord(): void {

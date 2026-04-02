@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { LLMClient } from '../llmClient';
 import { getKnowledgebaseUpdatePrompt } from '../utils/prompts';
+import { getRuntimePath } from '../utils/util';
 import { AgentLogRecord } from './agentLogStore';
 
 export class Evolution {
@@ -48,16 +49,27 @@ export class Evolution {
         }
     }
 
+    public static resetGenerationLine(): void {
+        for (const filePath of [
+            Evolution.getGenerationsFilePath(),
+            Evolution.getKnowledgebaseFilePath()
+        ]) {
+            if (fs.existsSync(filePath)) {
+                fs.rmSync(filePath, { force: true });
+            }
+        }
+    }
+
     private static getLogsDirectory(): string {
-        return path.resolve(process.cwd(), 'src', 'evolution', 'logs');
+        return getRuntimePath('evolution', 'logs');
     }
 
     private static getGenerationsFilePath(): string {
-        return path.resolve(process.cwd(), 'src', 'evolution', 'generations.txt');
+        return getRuntimePath('evolution', 'generations.txt');
     }
 
     private static getKnowledgebaseFilePath(): string {
-        return path.resolve(process.cwd(), 'src', 'evolution', 'knowledgebase.txt');
+        return getRuntimePath('evolution', 'knowledgebase.txt');
     }
 
     private static getStoredLogs(): AgentLogRecord[] {

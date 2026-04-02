@@ -1,13 +1,13 @@
 import { Bot } from "mineflayer";
 import { Movements as PathfinderMovements, goals as PathfinderGoals } from "mineflayer-pathfinder";
 import * as fs from "fs/promises";
-import * as path from "path";
 import { Vec3 as Vec3Constructor } from "vec3";
 import { z } from "zod";
 import { config } from "../config";
 import { LLMClient } from "../llmClient";
 import { GeneratedSkillDefinition, JsonValue, Skill } from "../types";
 import { getActionGenerationPrompt } from "../utils/prompts";
+import { getRuntimePath } from "../utils/util";
 
 interface StoredAction {
     name: string;
@@ -55,7 +55,7 @@ const GeneratedSkillDefinitionSchema = z.object({
 const GeneratedSkillDefinitionResponseFormat = z.toJSONSchema(GeneratedSkillDefinitionSchema);
 
 export class GeneratedActionService {
-    private readonly skillsPath = path.resolve(process.cwd(), 'src', 'skills', 'SKILLS.json');
+    private readonly skillsPath = getRuntimePath('skills', 'SKILLS.json');
 
     constructor(
         private readonly llm: LLMClient,

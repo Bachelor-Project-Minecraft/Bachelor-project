@@ -3,6 +3,7 @@ import * as path from 'path';
 import { config } from './config';
 import * as fs from 'fs';
 import { Agent } from './agent';
+import { getRuntimePath } from './utils/util';
 
 export class MinecraftServer {
     private serverProcess: ChildProcessWithoutNullStreams | null = null;
@@ -31,7 +32,7 @@ export class MinecraftServer {
 
             console.log(`Starting Minecraft server on port ${this.port}...`);
 
-            const serverDirectory = path.join(__dirname, 'server');
+            const serverDirectory = getRuntimePath('server');
 
             this.serverProcess = spawn('java', [
                 `-Xms${this.minRam}`,
@@ -104,10 +105,10 @@ export class MinecraftServer {
             return;
         }
 
-        const serverDirectory = path.join(__dirname, 'server');
+        const serverDirectory = getRuntimePath('server');
         const worldPath = path.join(serverDirectory, 'world');
         const cleanWorldPath = path.join(serverDirectory, 'world_clean');
-        const skillsPath = path.resolve(process.cwd(), 'src', 'skills', 'SKILLS.json');
+        const skillsPath = getRuntimePath('skills', 'SKILLS.json');
 
         try {
             if (!fs.existsSync(cleanWorldPath)) {
