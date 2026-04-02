@@ -1,22 +1,30 @@
 import "dotenv/config";
 
+import { existsSync } from 'fs';
 import { Agent } from './agent';
 import { config } from './config';
 import { AgentLogStore } from './evolution/agentLogStore';
 import { Evolution } from './evolution/evolution';
 import { MinecraftServer } from './minecraftServer';
 import { promptToContinueCurrentGenerationLine } from './utils/generationLinePrompt';
+import { getRuntimePath } from './utils/util';
 
 async function main() {
     try {
-        const shouldContinueGenerationLine = await promptToContinueCurrentGenerationLine();
+        const hasExistingGenerationLine =
+            existsSync(getRuntimePath('evolution', 'generations.txt'))
+            || existsSync(getRuntimePath('evolution', 'knowledgebase.txt'));
+            
+        const shouldContinueGenerationLine = hasExistingGenerationLine
+            ? await promptToContinueCurrentGenerationLine()
+            : true;
 
         if (!shouldContinueGenerationLine) {
             Evolution.resetGenerationLine();
         }
 
         const server = new MinecraftServer();
-        if (shouldContinueGenerationLine) {
+        if (hasExistingGenerationLine && shouldContinueGenerationLine) {
             await Evolution.updateKnowledgebase();
         }
         AgentLogStore.resetLogsDirectory();
