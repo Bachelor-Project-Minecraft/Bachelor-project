@@ -1,6 +1,7 @@
 import { Bot } from "mineflayer"
 import type { Block } from "prismarine-block"
 import { Vec3 } from "vec3"
+import { config } from "../config"
 import { roundNum } from "../utils/util"
 import {
 	type SnapshotEntity,
@@ -11,6 +12,10 @@ import {
 	type SnapshotFluidBlock,
 	type SnapshotSurroundingBlock,
 } from "./types"
+
+const hiddenPlayersFromBots = new Set(
+	config.admins.map((username) => username.toLowerCase()),
+)
 
 export class Environment {
 	private readonly nearbyRadius = 16
@@ -60,7 +65,11 @@ export class Environment {
 			)
 
 		const players = nearbyEntities
-			.filter((entity) => entity.type === "player")
+			.filter(
+				(entity) =>
+					entity.type === "player" &&
+					!hiddenPlayersFromBots.has((entity.username ?? "").toLowerCase()),
+			)
 			.map((entity) =>
 				this.toSnapshotEntity(
 					entity.id,
@@ -72,7 +81,11 @@ export class Environment {
 			)
 
 		const allPlayers = Object.values(this.bot.players)
-			.filter((player) => player.username !== this.bot.username)
+			.filter(
+				(player) =>
+					player.username !== this.bot.username &&
+					!hiddenPlayersFromBots.has(player.username.toLowerCase()),
+			)
 			.sort((left, right) => left.username.localeCompare(right.username))
 			.flatMap((player) => {
 				const entity = player.entity as typeof player.entity | null
