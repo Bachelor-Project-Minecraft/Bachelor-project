@@ -60,7 +60,7 @@ export class AIController {
         await this.generateResponse();
     }
 
-    public async processChat(sender: string, message: string) {
+    public async processMessage(sender: string, message: string) {
         if (this.isProcessing) return;
         this.isProcessing = true;
 

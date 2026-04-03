@@ -49,9 +49,9 @@ export class Agent {
             this.bot.quit();
         });
 
-        this.bot.on('chat', (username, message) => {
+        this.bot.on('whisper', (username, message) => {
             if (username === this.bot.username) return;
-            this.ai.processChat(username, message);
+            this.ai.processMessage(username, message);
         });
 
         // Immediate Reaction: Physical Damage

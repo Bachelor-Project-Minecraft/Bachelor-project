@@ -5,20 +5,42 @@ import { GeneratedActionService } from "./generatedActionService";
 import { Vec3 } from "vec3";
 import { Movements, goals } from "mineflayer-pathfinder";
 
-export const ChatSkill: Skill = {
-    name: 'send_chat',
-    description: 'Send a message to the public Minecraft chat. Use this to speak to players.',
+export const WhisperSkill: Skill = {
+    name: 'send_message',
+    description: 'Send a private message to one or more players. Use this only for survival-relevant coordination.',
     parameters: z.object({
-        message: z.string().describe('The message to send')
+        message: z.string().describe('The message to send'),
+        receivers: z.array(z.string()).min(1).describe('The exact Minecraft usernames to message (must be valid and non-empty)')
     }),
     execute: async (bot, args) => {
         const message =
             typeof args?.message === 'string' && args.message.trim()
                 ? args.message
                 : "No response";
+        const receivers = Array.isArray(args?.receivers)
+            ? args.receivers.filter((receiver: unknown): receiver is string =>
+                typeof receiver === 'string' && receiver.trim().length > 0
+            )
+            : [];
 
-        bot.chat(message);
-        return `<MESSAGE>: "${message}"`;
+        if (receivers.length === 0) {
+            return "<NO RECEIVERS>: Could not send message because no valid receivers were provided.";
+        }
+
+        for (const receiver of receivers) {
+            bot.whisper(receiver, message);
+        }
+
+        return `<MESSAGE to ${receivers.join(', ')}>: "${message}"`;
+    }
+};
+
+export const DoNothingSkill: Skill = {
+    name: 'do_nothing',
+    description: 'Take no action',
+    parameters: z.object({}),
+    execute: async () => {
+        return "<IDLE>: Chose not to act.";
     }
 };
 
