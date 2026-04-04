@@ -78,3 +78,9 @@ export interface EnvironmentSnapshot {
 	}
 	allPlayers: SnapshotEntity[]
 }
+
+export interface EnvironmentChangeStep {
+    title: string;
+    details: string[];
+    shouldTriggerPrompt: boolean;
+}

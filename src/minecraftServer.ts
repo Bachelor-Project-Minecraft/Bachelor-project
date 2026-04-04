@@ -11,6 +11,8 @@ export class MinecraftServer {
     private port: number;
     private minRam: string;
     private maxRam: string;
+    private frozenAccumulatedMs: number;
+    private frozenStartedAt: number | null;
 
     public isFrozen: Boolean;
     public agents: Set<Agent> = new Set();
@@ -21,6 +23,8 @@ export class MinecraftServer {
         this.minRam = config.minRam;
         this.maxRam = config.maxRam;
         this.isFrozen = false;
+        this.frozenAccumulatedMs = 0;
+        this.frozenStartedAt = null;
     }
 
     public start(): Promise<void> {
@@ -59,6 +63,8 @@ export class MinecraftServer {
 
             this.serverProcess.on('close', (code) => {
                 console.log(`[Server] Closed with code: ${code}`);
+                this.stopFrozenInterval();
+                this.isFrozen = false;
                 this.serverProcess = null;
             });
 
@@ -85,18 +91,36 @@ export class MinecraftServer {
 
     public setFreeze(freeze: boolean): void {
         if (freeze) {
+            if (!this.isFrozen && this.frozenStartedAt === null) {
+                this.frozenStartedAt = Date.now();
+            }
             this.isFrozen = true;
             this.agents.forEach((agent) => {
                 agent.setFreeze(true);
             })
             this.sendCommand('tick freeze');
         } else {
+            this.stopFrozenInterval();
             this.isFrozen = false;
             this.agents.forEach((agent) => {
                 agent.setFreeze(false);
             })
             this.sendCommand('tick unfreeze');
         }
+    }
+
+    private stopFrozenInterval(): void {
+        if (this.frozenStartedAt !== null) {
+            this.frozenAccumulatedMs += Date.now() - this.frozenStartedAt;
+            this.frozenStartedAt = null;
+        }
+    }
+
+    public get timefrozen(): number {
+        if (this.frozenStartedAt !== null) {
+            return this.frozenAccumulatedMs + (Date.now() - this.frozenStartedAt);
+        }
+        return this.frozenAccumulatedMs;
     }
 
     public resetWorld(): void{
