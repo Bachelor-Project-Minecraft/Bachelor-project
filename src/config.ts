@@ -10,7 +10,7 @@ const chatModel: LlmModelConfig = {
 
 const actionModel: LlmModelConfig = {
   provider: 'openrouter',
-  model: 'minimax/minimax-m2.5',
+  model: 'x-ai/grok-4.1-fast',
   reasoning: {
     effort: 'medium' // This is just a default and can be changed when calling the llm
   }
