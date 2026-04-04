@@ -7,6 +7,7 @@ import { MinecraftServer } from './minecraftServer';
 import { config } from './config';
 import { AIController } from './ai';
 import { Environment } from './environment/environment';
+import type { Scenario } from './scenarios';
 
 export class Agent {
     public bot: Bot;
@@ -14,10 +15,11 @@ export class Agent {
     private lastDangerAlert: number = 0; // Timestamp to prevent spamming danger alerts
     private environment: Environment;
     public server: MinecraftServer;
+    private scenario: Scenario;
     public isFrozen: boolean;
     public isAlive: boolean;
 
-    constructor(server: MinecraftServer, username: string) {
+    constructor(server: MinecraftServer, username: string, scenario: Scenario) {
         this.bot = mineflayer.createBot({
             host: config.host,
             port: config.port,
@@ -31,6 +33,7 @@ export class Agent {
         this.isFrozen = false;
         this.isAlive = false;
         this.server = server;
+        this.scenario = scenario;
         this.server.registerAgent(this);
         this.ai = new AIController(this, username);
         
@@ -42,6 +45,7 @@ export class Agent {
         this.bot.on('spawn', () => {
             this.isAlive = true;
             console.log(`Mineflayer bot spawned as ${this.bot.username}`);
+            this.scenario.onAgentSpawn(this);
         });
 
         this.bot.on('death', () => {
