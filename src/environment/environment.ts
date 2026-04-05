@@ -4,12 +4,19 @@ import { Vec3 } from "vec3"
 import { config } from "../config"
 import { roundNum } from "../utils/util"
 import {
+	compareEnvironmentSnapshots,
+	diffInventory,
+	toEntityMap,
+} from "./environmentComparison"
+import {
+	type EnvironmentChangeStep,
 	type SnapshotEntity,
 	type SnapshotPosition,
 	type EnvironmentSnapshot,
 	type SnapshotDirectionalBlocks,
 	type SnapshotBlock,
 	type SnapshotFluidBlock,
+	type SnapshotInventoryItem,
 	type SnapshotSurroundingBlock,
 } from "./types"
 
@@ -23,6 +30,21 @@ export class Environment {
 	private readonly maxNearbyFluids = 6
 
 	constructor(private readonly bot: Bot) {}
+
+	public compareEnvironmentSnapshots(
+		previous: EnvironmentSnapshot,
+		current: EnvironmentSnapshot,
+	): EnvironmentChangeStep[] {
+		return compareEnvironmentSnapshots(previous, current)
+	}
+
+	public toEntityMap(entities: SnapshotEntity[]): Map<number, SnapshotEntity> {
+		return toEntityMap(entities)
+	}
+
+	public diffInventory(previous: SnapshotInventoryItem[], current: SnapshotInventoryItem[]) {
+		return diffInventory(previous, current)
+	}
 
 	public getEnvironmentSnapshot(): EnvironmentSnapshot {
 		const botEntity = this.bot.entity
