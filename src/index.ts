@@ -6,8 +6,11 @@ import { config } from './config';
 import { AgentLogStore } from './evolution/agentLogStore';
 import { Evolution } from './evolution/evolution';
 import { MinecraftServer } from './minecraftServer';
-import { activeScenario } from './scenarios';
-import { promptToContinueCurrentGenerationLine } from './utils/generationLinePrompt';
+import { availableScenarios } from './scenarios';
+import {
+    promptToContinueCurrentGenerationLine,
+    promptToSelectScenario,
+} from './utils/terminalPrompts';
 import { getRuntimePath } from './utils/util';
 
 async function main() {
@@ -24,6 +27,8 @@ async function main() {
             Evolution.resetGenerationLine();
         }
 
+        const selectedScenario = await promptToSelectScenario(availableScenarios);
+
         const server = new MinecraftServer();
         if (hasExistingGenerationLine && shouldContinueGenerationLine) {
             await Evolution.updateKnowledgebase();
@@ -38,8 +43,8 @@ async function main() {
         server.sendCommand('gamerule spawnRadius 0');
         server.sendCommand('gamerule send_command_feedback false');
 
-        const agents = config.agents.map((agentName) => new Agent(server, agentName, activeScenario));
-        activeScenario.start(server, agents);
+        const agents = config.agents.map((agentName) => new Agent(server, agentName, selectedScenario));
+        selectedScenario.start(server, agents);
         void agents;
     } catch (error) {
         console.error('Failed to boot Minecraft server:', error);

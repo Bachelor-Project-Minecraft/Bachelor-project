@@ -6,6 +6,10 @@ const zombieTag = 'scenario_respawn_zombie';
 const respawnMarkerTag = 'scenario_respawn_zombie_marker';
 
 export class ZombieRespawnScenario extends Scenario {
+    constructor() {
+        super('ZombieRespawnScenario', 'Spawns a zombie near each agent on spawn and then respawns zombies once all zombies are dead.');
+    }
+
     public start(_server: MinecraftServer, agents: Agent[]): void {
         setInterval(() => {
             const aliveAgents = agents.filter((agent) => agent.isAlive);

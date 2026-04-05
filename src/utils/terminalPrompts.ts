@@ -1,8 +1,19 @@
 import * as readline from 'readline';
 
-export async function promptToContinueCurrentGenerationLine(): Promise<boolean> {
-    if (!process.stdin.isTTY || !process.stdout.isTTY) {
-        return true;
+type PromptOption<T> = {
+    label: string;
+    description?: string;
+    value: T;
+};
+
+async function promptToSelectOption<T>(
+    title: string,
+    subtitle: string,
+    options: PromptOption<T>[],
+    defaultValue: T
+): Promise<T> {
+    if (!process.stdin.isTTY || !process.stdout.isTTY || options.length === 0) {
+        return defaultValue;
     }
 
     return new Promise((resolve) => {
@@ -36,22 +47,28 @@ export async function promptToContinueCurrentGenerationLine(): Promise<boolean> 
         const render = () => {
             clearRenderedPrompt();
 
-            const options = [
-                'Yes, continue the current generation line',
-                'No, reset and start fresh',
-            ].map((option, index) => {
+            const optionLines = options.flatMap((option, index) => {
                 const prefix = index === selectedIndex ? '>' : ' ';
-                const line = `${prefix} ${index + 1}. ${option}`;
-                return index === selectedIndex
+                const line = `${prefix} ${index + 1}. ${option.label}`;
+                const renderedOption = index === selectedIndex
                     ? `${styles.selected}${line}${styles.reset}`
                     : line;
+
+                if (!option.description) {
+                    return [renderedOption];
+                }
+
+                return [
+                    renderedOption,
+                    `${styles.dim}   ${option.description}${styles.reset}`,
+                ];
             });
 
             const lines = [
-                'Continue generation line?',
-                `${styles.dim}Resume the current run or start a fresh generation line.${styles.reset}`,
+                title,
+                `${styles.dim}${subtitle}${styles.reset}`,
                 '',
-                ...options,
+                ...optionLines,
                 '',
                 `${styles.dim}Use arrow keys and press Enter to confirm.${styles.reset}`,
             ];
@@ -71,18 +88,18 @@ export async function promptToContinueCurrentGenerationLine(): Promise<boolean> 
         const handleKeypress = (_: string, key: readline.Key) => {
             if (key.name === 'return' || key.name === 'enter') {
                 cleanup();
-                resolve(selectedIndex === 0);
+                resolve(options[selectedIndex].value);
                 return;
             }
 
-            if (key.name === 'right' || key.name === 'down') {
-                selectedIndex = 1;
+            if (key.name === 'down' || key.name === 'right') {
+                selectedIndex = (selectedIndex + 1) % options.length;
                 render();
                 return;
             }
 
-            if (key.name === 'left' || key.name === 'up') {
-                selectedIndex = 0;
+            if (key.name === 'up' || key.name === 'left') {
+                selectedIndex = (selectedIndex - 1 + options.length) % options.length;
                 render();
                 return;
             }
@@ -99,4 +116,41 @@ export async function promptToContinueCurrentGenerationLine(): Promise<boolean> 
         process.stdin.on('keypress', handleKeypress);
         render();
     });
+}
+
+export async function promptToContinueCurrentGenerationLine(): Promise<boolean> {
+    return promptToSelectOption(
+        'Continue generation line?',
+        'Resume the current run or start a fresh generation line.',
+        [
+            {
+                label: 'Yes, continue the current generation line',
+                value: true,
+            },
+            {
+                label: 'No, reset and start fresh',
+                value: false,
+            },
+        ],
+        true
+    );
+}
+
+export async function promptToSelectScenario<T extends { name: string; description: string }>(
+    scenarios: T[]
+): Promise<T> {
+    if (scenarios.length === 0) {
+        throw new Error('No scenarios are available to select.');
+    }
+
+    return promptToSelectOption(
+        'Select scenario',
+        'Choose the scenario to run for this session.',
+        scenarios.map((scenario) => ({
+            label: scenario.name,
+            description: scenario.description,
+            value: scenario,
+        })),
+        scenarios[0]
+    );
 }
