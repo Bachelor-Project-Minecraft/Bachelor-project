@@ -1,4 +1,5 @@
-import { Bot } from "mineflayer"
+import { Bot, type Player } from "mineflayer"
+import type { Entity } from "prismarine-entity"
 import type { Block } from "prismarine-block"
 import { Vec3 } from "vec3"
 import { config } from "../config"
@@ -73,6 +74,7 @@ export class Environment {
 		)
 		const nearbyFluids = this.getNearbyFluids(botPosition, botBlockPosition)
 		const surroundingBlocks = this.getSurroundingBlocks(botBlockPosition)
+		const allPlayersByName = new Map<string, SnapshotEntity>()
 
 		const hostiles = nearbyEntities
 			.filter((entity) => entity.type === "hostile")
@@ -80,7 +82,7 @@ export class Environment {
 				this.toSnapshotEntity(
 					entity.id,
 					entity.name ?? entity.displayName ?? "unknown",
-					entity.health,
+					this.getEntityHealth(entity),
 					entity.position,
 					botPosition,
 				),
@@ -90,42 +92,52 @@ export class Environment {
 			.filter(
 				(entity) =>
 					entity.type === "player" &&
+					entity.username !== this.bot.username &&
 					!hiddenPlayersFromBots.has((entity.username ?? "").toLowerCase()),
 			)
 			.map((entity) =>
 				this.toSnapshotEntity(
 					entity.id,
 					entity.username ?? entity.displayName ?? "unknown",
-					entity.health,
+					this.getEntityHealth(entity),
 					entity.position,
 					botPosition,
 				),
 			)
 
-		const allPlayers = Object.values(this.bot.players)
-			.filter(
-				(player) =>
-					player.username !== this.bot.username &&
-					!hiddenPlayersFromBots.has(player.username.toLowerCase()),
+		for (const player of players) {
+			allPlayersByName.set(player.name, player)
+		}
+
+		for (const player of Object.values(this.bot.players)) {
+			if (
+				player.username === this.bot.username ||
+				hiddenPlayersFromBots.has(player.username.toLowerCase())
+			) {
+				continue
+			}
+
+			const entity = this.resolvePlayerEntity(player)
+
+			if (!entity) {
+				continue
+			}
+
+			allPlayersByName.set(
+				player.username,
+				this.toSnapshotEntity(
+					entity.id,
+					player.username,
+					this.getEntityHealth(entity),
+					entity.position,
+					botPosition,
+				),
 			)
-			.sort((left, right) => left.username.localeCompare(right.username))
-			.flatMap((player) => {
-				const entity = player.entity as typeof player.entity | null
+		}
 
-				if (!entity) {
-					return []
-				}
-
-				return [
-					this.toSnapshotEntity(
-						entity.id,
-						player.username,
-						entity.health,
-						entity.position,
-						botPosition,
-					),
-				]
-			})
+		const allPlayers = [...allPlayersByName.values()].sort((left, right) =>
+			left.name.localeCompare(right.name),
+		)
 
 		const droppedItems = nearbyEntities
 			.filter(
@@ -377,6 +389,28 @@ export class Environment {
 				},
 			]
 		})
+	}
+
+	private resolvePlayerEntity(player: Player): Entity | null {
+		return (
+			player.entity ??
+			Object.values(this.bot.entities).find(
+				(entity) =>
+					entity.type === "player" &&
+					(entity.uuid === player.uuid || entity.username === player.username),
+			) ??
+			null
+		)
+	}
+
+	private getEntityHealth(entity: Entity): number | undefined {
+		if (typeof entity.health === "number") {
+			return entity.health
+		}
+
+		const metadataHealth = entity.metadata[9]
+
+		return typeof metadataHealth === "number" ? metadataHealth : undefined
 	}
 
 	private toSnapshotEntity(
