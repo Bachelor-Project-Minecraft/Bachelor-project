@@ -55,6 +55,7 @@ export interface LlmToolCall {
 export interface LlmMessage {
     role: "system" | "user" | "assistant" | "tool";
     content: string;
+    thinking?: string;
     toolCallId?: string;
     toolName?: string;
     toolCalls?: LlmToolCall[];
@@ -76,13 +77,46 @@ export interface LlmGenerateRequest {
 }
 
 export interface LlmChatResponse {
+    provider?: LlmProvider;
+    model?: string;
+    reasoningConfig?: LlmReasoningConfig;
+    thinking?: string;
     content: string;
     toolCalls: LlmToolCall[];
 }
 
 export interface LlmGenerateResponse {
+    provider?: LlmProvider;
+    model?: string;
+    reasoningConfig?: LlmReasoningConfig;
+    thinking?: string;
     content: string;
 }
+
+export interface LlmSystemPromptLog {
+    content: string;
+    memory: string;
+    environmentSnapshot: unknown;
+}
+
+export interface LlmCallLogBase {
+    timestamp: string;
+    systemPrompt: LlmSystemPromptLog | null;
+}
+
+export interface LlmChatCallLog extends LlmCallLogBase {
+    kind: "chat";
+    request: Omit<LlmChatRequest, "tools"> & { tools?: string[] };
+    response: LlmChatResponse;
+}
+
+export interface LlmGenerateCallLog extends LlmCallLogBase {
+    kind: "generate";
+    request: LlmGenerateRequest;
+    response: LlmGenerateResponse;
+}
+
+export type LlmCallLog = LlmChatCallLog | LlmGenerateCallLog;
 
 export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.union([

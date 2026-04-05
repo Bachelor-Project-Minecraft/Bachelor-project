@@ -28,7 +28,8 @@ export class AIController {
 
     constructor(agent: Agent, agentName: string) {
         this.agent = agent;
-        this.llm = new LLMClient();
+        this.log = new AgentLogStore(agentName, () => this.agent.isAlive);
+        this.llm = new LLMClient(this.log);
         this.registry = SkillRegistry.getInstance();
         this.registry.initializeBuiltIns(
             new GeneratedActionService(
@@ -38,7 +39,6 @@ export class AIController {
                 (skill) => this.registry.registerGeneratedSkill(skill)
             )
         );
-        this.log = new AgentLogStore(agentName, () => this.agent.isAlive);
         this.knowledgebase = Evolution.getKnowledgebase();
 
         this.history.push({
@@ -386,6 +386,7 @@ export class AIController {
 
         this.appendMessageToHistory({
             role: 'assistant',
+            thinking: response.thinking,
             content: response.content,
             toolCalls: response.toolCalls
         });

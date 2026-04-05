@@ -1,7 +1,9 @@
 import { OpenRouter } from "@openrouter/sdk";
 import { Ollama } from "ollama";
 import { config } from "./config";
+import { AgentLogStore } from "./evolution/agentLogStore";
 import {
+    LlmCallLog,
     LlmChatRequest,
     LlmChatResponse,
     LlmGenerateRequest,
@@ -9,6 +11,7 @@ import {
     LlmMessage,
     LlmModelConfig,
     LlmReasoningConfig,
+    LlmSystemPromptLog,
     LlmToolCall,
     ToolSchema
 } from "./types";
@@ -19,7 +22,7 @@ export class LLMClient {
     private readonly ollama?: Ollama;
     private readonly openRouter?: OpenRouter;
 
-    constructor() {
+    constructor(private readonly logStore?: AgentLogStore) {
         const usesOllama =
             config.llm.chat.provider === "ollama" ||
             config.llm.action.provider === "ollama";
@@ -39,6 +42,7 @@ export class LLMClient {
     public async chat(request: LlmChatRequest): Promise<LlmChatResponse> {
         const modelConfig = this.getModelConfig(request.useActionModel);
         const reasoning = request.reasoning ?? modelConfig.reasoning;
+        let normalizedResponse: LlmChatResponse;
 
         if (modelConfig.provider === "ollama") {
             if (!this.ollama) {
@@ -53,39 +57,56 @@ export class LLMClient {
                 think: this.toOllamaThink(reasoning)
             });
 
-            return {
+            normalizedResponse = {
+                provider: modelConfig.provider,
+                model: modelConfig.model,
+                reasoningConfig: reasoning,
+                thinking: response.message.thinking,
                 content: response.message.content ?? "",
                 toolCalls: this.normalizeOllamaToolCalls(response.message.tool_calls)
             };
-        }
+        } else {
+            this.ensureOpenRouterApiKey();
 
-        this.ensureOpenRouterApiKey();
-
-        if (!this.openRouter) {
-            throw new Error("OpenRouter client is not initialized for the current configuration.");
-        }
-
-        const response = await this.openRouter.chat.send({
-            chatGenerationParams: {
-                model: modelConfig.model,
-                messages: this.toOpenRouterMessages(request.messages),
-                tools: request.tools as any,
-                responseFormat: this.toOpenRouterResponseFormat(request.jsonSchema) as any,
-                reasoning: this.toOpenRouterReasoning(reasoning) as any
+            if (!this.openRouter) {
+                throw new Error("OpenRouter client is not initialized for the current configuration.");
             }
-        } as any);
 
-        const message = response.choices[0]?.message;
+            const response = await this.openRouter.chat.send({
+                chatGenerationParams: {
+                    model: modelConfig.model,
+                    messages: this.toOpenRouterMessages(request.messages),
+                    tools: request.tools as any,
+                    responseFormat: this.toOpenRouterResponseFormat(request.jsonSchema) as any,
+                    reasoning: this.toOpenRouterReasoning(reasoning) as any
+                }
+            } as any);
 
-        return {
-            content: this.normalizeContent(message?.content),
-            toolCalls: this.normalizeOpenRouterToolCalls(message?.toolCalls)
-        };
+            const message = response.choices[0]?.message;
+            normalizedResponse = {
+                provider: modelConfig.provider,
+                model: modelConfig.model,
+                reasoningConfig: reasoning,
+                thinking: message?.reasoning ?? undefined,
+                content: this.normalizeContent(message?.content),
+                toolCalls: this.normalizeOpenRouterToolCalls(message?.toolCalls)
+            };
+        }
+
+        this.appendLlmCall({
+            kind: "chat",
+            timestamp: new Date().toISOString(),
+            systemPrompt: this.getSystemPromptLog(request.messages),
+            request: this.toLoggedChatRequest(request),
+            response: this.cloneForLogging(normalizedResponse)
+        });
+        return normalizedResponse;
     }
 
     public async generate(request: LlmGenerateRequest): Promise<LlmGenerateResponse> {
         const modelConfig = this.getModelConfig(request.useActionModel);
         const reasoning = request.reasoning ?? modelConfig.reasoning;
+        let normalizedResponse: LlmGenerateResponse;
 
         if (modelConfig.provider === "ollama") {
             if (!this.ollama) {
@@ -99,29 +120,47 @@ export class LLMClient {
                 think: this.toOllamaThink(reasoning)
             });
 
-            return {
+            normalizedResponse = {
+                provider: modelConfig.provider,
+                model: modelConfig.model,
+                reasoningConfig: reasoning,
+                thinking: response.thinking,
                 content: response.response ?? ""
+            };
+        } else {
+            this.ensureOpenRouterApiKey();
+
+            if (!this.openRouter) {
+                throw new Error("OpenRouter client is not initialized for the current configuration.");
+            }
+
+            const response = await this.openRouter.chat.send({
+                chatGenerationParams: {
+                    model: modelConfig.model,
+                    messages: [{ role: "user", content: request.prompt }],
+                    responseFormat: this.toOpenRouterResponseFormat(request.jsonSchema) as any,
+                    reasoning: this.toOpenRouterReasoning(reasoning) as any
+                }
+            } as any);
+
+            const message = response.choices[0]?.message;
+            normalizedResponse = {
+                provider: modelConfig.provider,
+                model: modelConfig.model,
+                reasoningConfig: reasoning,
+                thinking: message?.reasoning ?? undefined,
+                content: this.normalizeContent(message?.content)
             };
         }
 
-        this.ensureOpenRouterApiKey();
-
-        if (!this.openRouter) {
-            throw new Error("OpenRouter client is not initialized for the current configuration.");
-        }
-
-        const response = await this.openRouter.chat.send({
-            chatGenerationParams: {
-                model: modelConfig.model,
-                messages: [{ role: "user", content: request.prompt }],
-                responseFormat: this.toOpenRouterResponseFormat(request.jsonSchema) as any,
-                reasoning: this.toOpenRouterReasoning(reasoning) as any
-            }
-        } as any);
-
-        return {
-            content: this.normalizeContent(response.choices[0]?.message?.content)
-        };
+        this.appendLlmCall({
+            kind: "generate",
+            timestamp: new Date().toISOString(),
+            systemPrompt: null,
+            request: this.cloneForLogging(request),
+            response: this.cloneForLogging(normalizedResponse)
+        });
+        return normalizedResponse;
     }
 
     private getModelConfig(useActionModel?: boolean): LlmModelConfig {
@@ -138,6 +177,7 @@ export class LLMClient {
         return messages.map((message) => ({
             role: message.role,
             content: message.content,
+            thinking: message.thinking,
             tool_name: message.toolName,
             tool_calls: message.toolCalls?.map((toolCall) => ({
                 function: {
@@ -162,6 +202,7 @@ export class LLMClient {
                 return {
                     role: "assistant",
                     content: message.content,
+                    reasoning: message.thinking,
                     toolCalls: message.toolCalls?.map((toolCall) => ({
                         id: toolCall.id,
                         type: "function",
@@ -304,5 +345,61 @@ export class LLMClient {
 
     private createToolCallId(name: string, index: number): string {
         return `${name}-${Date.now()}-${index}`;
+    }
+
+    private getSystemPromptLog(messages: LlmMessage[]): LlmSystemPromptLog | null {
+        const firstMessage = messages[0];
+        if (firstMessage?.role !== "system") {
+            return null;
+        }
+
+        const content = firstMessage.content;
+        const memoryMarker = "Memory: ";
+        const environmentMarker = "\n\nThe following shows your current environment.\nEnvironment Snapshot: ";
+        const memoryStart = content.indexOf(memoryMarker);
+        const environmentStart = content.indexOf(environmentMarker);
+
+        const memory =
+            memoryStart >= 0 && environmentStart > memoryStart
+                ? content.slice(memoryStart + memoryMarker.length, environmentStart)
+                : "";
+
+        const environmentSnapshotText =
+            environmentStart >= 0
+                ? content.slice(environmentStart + environmentMarker.length)
+                : "";
+
+        return {
+            content,
+            memory,
+            environmentSnapshot: this.parseJson(environmentSnapshotText)
+        };
+    }
+
+    private toLoggedChatRequest(request: LlmChatRequest): Omit<LlmChatRequest, "tools"> & { tools?: string[] } {
+        return {
+            ...this.cloneForLogging(request),
+            tools: request.tools?.map((tool) => tool.function.name)
+        };
+    }
+
+    private appendLlmCall(call: LlmCallLog): void {
+        if (!this.logStore) {
+            return;
+        }
+
+        try {
+            this.logStore.appendLlmCall(call);
+        } catch (error) {
+            console.error("Failed to append LLM log:", error);
+        }
+    }
+
+    private cloneForLogging<T>(value: T): T {
+        if (value === undefined) {
+            return value;
+        }
+
+        return JSON.parse(JSON.stringify(value)) as T;
     }
 }
