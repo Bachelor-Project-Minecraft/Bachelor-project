@@ -6,7 +6,12 @@ import { config } from './config';
 import { AgentLogStore } from './evolution/agentLogStore';
 import { Evolution } from './evolution/evolution';
 import { MinecraftServer } from './minecraftServer';
-import { availableScenarios } from './scenarios';
+import {
+    availableScenarios,
+    clearSelectedScenario,
+    getDefaultScenario,
+    persistSelectedScenario,
+} from './scenarios';
 import {
     promptToContinueCurrentGenerationLine,
     promptToSelectScenario,
@@ -25,9 +30,14 @@ async function main() {
 
         if (!shouldContinueGenerationLine) {
             Evolution.resetGenerationLine();
+            clearSelectedScenario();
         }
 
-        const selectedScenario = await promptToSelectScenario(availableScenarios);
+        const selectedScenario = await promptToSelectScenario(
+            availableScenarios,
+            getDefaultScenario()
+        );
+        persistSelectedScenario(selectedScenario);
 
         const server = new MinecraftServer();
         if (hasExistingGenerationLine && shouldContinueGenerationLine) {

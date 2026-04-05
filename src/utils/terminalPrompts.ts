@@ -17,7 +17,10 @@ async function promptToSelectOption<T>(
     }
 
     return new Promise((resolve) => {
-        let selectedIndex = 0;
+        let selectedIndex = Math.max(
+            options.findIndex((option) => Object.is(option.value, defaultValue)),
+            0
+        );
         let renderedLineCount = 0;
 
         const styles = {
@@ -137,7 +140,8 @@ export async function promptToContinueCurrentGenerationLine(): Promise<boolean> 
 }
 
 export async function promptToSelectScenario<T extends { name: string; description: string }>(
-    scenarios: T[]
+    scenarios: T[],
+    defaultScenario: T = scenarios[0]
 ): Promise<T> {
     if (scenarios.length === 0) {
         throw new Error('No scenarios are available to select.');
@@ -151,6 +155,6 @@ export async function promptToSelectScenario<T extends { name: string; descripti
             description: scenario.description,
             value: scenario,
         })),
-        scenarios[0]
+        defaultScenario
     );
 }
