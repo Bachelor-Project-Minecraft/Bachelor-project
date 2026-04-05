@@ -87,29 +87,6 @@ export class Agent {
         return this.environment.compareEnvironmentSnapshots(previousSnapshot, currentSnapshot);
     }
 
-/*     private toBlockKey(name: string, position: { x: number; y: number; z: number }): string {
-        return `${name}:${position.x},${position.y},${position.z}`;
-    }
-
-    private diffDirectionalBlocks(
-        previous: EnvironmentSnapshot['nearby']['world']['directionalBlocks'],
-        current: EnvironmentSnapshot['nearby']['world']['directionalBlocks']
-    ): string[] {
-        const changed: string[] = [];
-        const keys = Object.keys(current) as Array<keyof EnvironmentSnapshot['nearby']['world']['directionalBlocks']>;
-
-        for (const key of keys) {
-            const previousBlock = previous[key];
-            const currentBlock = current[key];
-
-            if (previousBlock.name !== currentBlock.name) {
-                changed.push(`- ${String(key)}: ${previousBlock.name} -> ${currentBlock.name}`);
-            }
-        }
-
-        return changed.slice(0, 8);
-    } */
-
     private formatEnvironmentChanges(steps: EnvironmentChangeStep[]): string {
         return steps
             .map((step) => {
