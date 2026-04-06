@@ -14,8 +14,6 @@ type ValidationResult =
     | { success: false; error: string };
 
 export class AIController {
-    private static llmRequestQueue: Promise<void> = Promise.resolve();
-
     private llm: LLMClient;
     private agent: Agent;
     private registry: SkillRegistry;
@@ -36,7 +34,8 @@ export class AIController {
                 this.llm,
                 (name, description, parameters, executeAction) =>
                     this.registry.createGeneratedSkill(name, description, parameters, executeAction),
-                (skill) => this.registry.registerGeneratedSkill(skill)
+                (skill) => this.registry.registerGeneratedSkill(skill),
+                (work) => this.agent.server.runWhileWorldFrozen(work)
             )
         );
         this.knowledgebase = Evolution.getKnowledgebase();
@@ -76,22 +75,9 @@ export class AIController {
             const response = await this.generateQueuedResponse();
             const toolCalls = response.toolCalls;
 
-            console.log("---------------------------------------------------------------")
-            console.log("Response message content: " + (response.content || "<NO CONTENT>"));
-            for (const tool of toolCalls) {
-                console.log(`Tool call: ${tool.function.name} with args ${JSON.stringify(tool.function.arguments)}`);
-            }
-            console.log("---------------------------------------------------------------")
-
             this.recordAssistantResponse(response);
 
             if (toolCalls.length === 0) {
-                console.log("The model decided on no tool calls");
-                console.log("---------------------------------------------------------------")
-                console.log("History:")
-                console.log(this.history)
-                console.log("---------------------------------------------------------------")
-
                 return;
             }
 
@@ -116,22 +102,7 @@ export class AIController {
     }
 
     private async generateQueuedResponse(): Promise<LlmChatResponse> {
-        const previousRequest = AIController.llmRequestQueue;
-        let releaseMutex!: () => void;
-
-        AIController.llmRequestQueue = new Promise<void>((resolve) => {
-            releaseMutex = resolve;
-        });
-
-        await previousRequest;
-
-        let isWorldFrozen = false;
-
-        try {
-            console.log(this.agent.bot.username + " is freezing the world");
-            this.agent.server.setFreeze(true);
-            isWorldFrozen = true;
-
+        return this.agent.server.runWhileWorldFrozen(async () => {
             this.updateSystemPromptEnvironment();
 
             if (this.shouldSummarizeHistory()) {
@@ -143,14 +114,7 @@ export class AIController {
             console.log("Finished AI response generation.");
 
             return response;
-        } finally {
-            if (isWorldFrozen) {
-                console.log(this.agent.bot.username + " is unfreezing the world");
-                this.agent.server.setFreeze(false);
-            }
-
-            releaseMutex();
-        }
+        });
     }
 
     private async executeToolCall(toolCall: LlmToolCall): Promise<string | null> {
@@ -192,10 +156,12 @@ export class AIController {
                 validation.error
             );
 
-            const repairResponse = await this.requestChat([
-                ...this.history,
-                { role: 'user', content: repairPrompt }
-            ]);
+            const repairResponse = await this.agent.server.runWhileWorldFrozen(async () =>
+                this.requestChat([
+                    ...this.history,
+                    { role: 'user', content: repairPrompt }
+                ])
+            );
 
             const repairedToolCalls = repairResponse.toolCalls;
             const repairedToolCall = repairedToolCalls.find(

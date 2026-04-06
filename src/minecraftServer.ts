@@ -11,6 +11,7 @@ export class MinecraftServer {
     private port: number;
     private minRam: string;
     private maxRam: string;
+    private agentExecutionQueue: Promise<void>;
     private frozenAccumulatedMs: number;
     private frozenStartedAt: number | null;
 
@@ -22,6 +23,7 @@ export class MinecraftServer {
         this.jarName = config.jarName;
         this.minRam = config.minRam;
         this.maxRam = config.maxRam;
+        this.agentExecutionQueue = Promise.resolve();
         this.isFrozen = false;
         this.frozenAccumulatedMs = 0;
         this.frozenStartedAt = null;
@@ -89,24 +91,46 @@ export class MinecraftServer {
         this.agents.add(agent);
     }
 
-    public setFreeze(freeze: boolean): void {
-        if (freeze) {
-            if (!this.isFrozen && this.frozenStartedAt === null) {
-                this.frozenStartedAt = Date.now();
-            }
-            this.isFrozen = true;
-            this.agents.forEach((agent) => {
-                agent.setFreeze(true);
-            })
-            this.sendCommand('tick freeze');
-        } else {
-            this.stopFrozenInterval();
-            this.isFrozen = false;
-            this.agents.forEach((agent) => {
-                agent.setFreeze(false);
-            })
-            this.sendCommand('tick unfreeze');
+    public async runWhileWorldFrozen<T>(work: () => Promise<T>): Promise<T> {
+        // All LLM work goes through this queue so exactly one agent freezes
+        // the world, does an LLM call and then unfreezes again.
+        const previousExecution = this.agentExecutionQueue;
+        let releaseExecution!: () => void;
+
+        this.agentExecutionQueue = new Promise<void>((resolve) => {
+            releaseExecution = resolve;
+        });
+
+        await previousExecution;
+        this.freezeWorld();
+
+        try {
+            return await work();
+        } finally {
+            this.unfreezeWorld();
+            releaseExecution();
         }
+    }
+
+    private freezeWorld(): void {
+        if (!this.isFrozen && this.frozenStartedAt === null) {
+            this.frozenStartedAt = Date.now();
+        }
+
+        this.isFrozen = true;
+        this.agents.forEach((agent) => {
+            agent.setFreeze(true);
+        });
+        this.sendCommand('tick freeze');
+    }
+
+    private unfreezeWorld(): void {
+        this.stopFrozenInterval();
+        this.isFrozen = false;
+        this.agents.forEach((agent) => {
+            agent.setFreeze(false);
+        });
+        this.sendCommand('tick unfreeze');
     }
 
     private stopFrozenInterval(): void {

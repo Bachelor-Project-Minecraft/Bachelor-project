@@ -36,6 +36,8 @@ type RegisterGeneratedSkill = (
     skill: Skill
 ) => RegistrationResult;
 
+type RunWhileWorldFrozen = <T>(work: () => Promise<T>) => Promise<T>;
+
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
     ...args: string[]
 ) => ActionExecutor;
@@ -54,6 +56,13 @@ const GeneratedSkillDefinitionSchema = z.object({
 
 const GeneratedSkillDefinitionResponseFormat = z.toJSONSchema(GeneratedSkillDefinitionSchema);
 
+interface PreparedAction {
+    generatedDefinition: GeneratedSkillDefinition;
+    compiledAction: ActionExecutor;
+    compiledParameters: z.ZodObject<any>;
+    parsedInitialArgs: unknown;
+}
+
 export class GeneratedActionService {
     private readonly skillsPath = getRuntimePath('skills', 'SKILLS.json');
 
@@ -65,54 +74,34 @@ export class GeneratedActionService {
             parameters: z.ZodTypeAny,
             executeAction: (bot: Bot, args: unknown) => Promise<string>
         ) => Skill,
-        private readonly registerGeneratedSkill: RegisterGeneratedSkill
+        private readonly registerGeneratedSkill: RegisterGeneratedSkill,
+        private readonly runWhileWorldFrozen: RunWhileWorldFrozen
     ) {}
 
     public async useAction(bot: Bot, input: UseActionInput): Promise<string> {
         for (let attempt = 1; attempt <= config.actions.generationRetries; attempt++) {
-            console.log("Started code generation for action:", input.name);
-            const generatedDefinition = await this.generateActionDefinition(input);
-            console.log("Finished code generation for action:", input.name);
-            if (!generatedDefinition) {
-                console.warn(`Generated action "${input.name}" returned invalid metadata on attempt ${attempt}.`);
-                continue;
-            }
+            const preparedAction = await this.runWhileWorldFrozen(async () =>
+                this.prepareAction(input, attempt)
+            );
 
-            const compiledParameters = this.compileParameters(generatedDefinition.parameters);
-            if (!compiledParameters) {
-                console.warn(`Generated action "${input.name}" failed schema validation on attempt ${attempt}.`);
-                continue;
-            }
-
-            const compiledAction = this.compileAction(generatedDefinition.code);
-
-            if (!compiledAction) {
-                console.warn(`Generated action "${input.name}" failed syntax validation on attempt ${attempt}.`);
+            if (!preparedAction) {
                 continue;
             }
 
             try {
-                const initialArgs = this.mapOrderedArgsToNamedArgs(compiledParameters, input.args);
-                if (!initialArgs) {
-                    console.warn(`Generated action "${input.name}" produced a schema that does not match the provided args on attempt ${attempt}.`);
-                    continue;
-                }
-
-                const parsedInitialArgs = compiledParameters.safeParse(initialArgs);
-                if (!parsedInitialArgs.success) {
-                    console.warn(`Generated action "${input.name}" rejected the provided args on attempt ${attempt}: ${parsedInitialArgs.error.message}`);
-                    continue;
-                }
-
                 console.log("Started action execution for:", input.name);
-                const result = await this.runAction(compiledAction, bot, parsedInitialArgs.data);
+                const result = await this.runAction(
+                    preparedAction.compiledAction,
+                    bot,
+                    preparedAction.parsedInitialArgs
+                );
                 console.log("Finished action execution for:", input.name);
 
                 const generatedSkill = this.createGeneratedSkill(
                     input.name,
                     input.description,
-                    compiledParameters,
-                    (runtimeBot, runtimeArgs) => this.runAction(compiledAction, runtimeBot, runtimeArgs)
+                    preparedAction.compiledParameters,
+                    (runtimeBot, runtimeArgs) => this.runAction(preparedAction.compiledAction, runtimeBot, runtimeArgs)
                 );
                 const registrationResult = this.registerGeneratedSkill(generatedSkill);
                 if (!registrationResult.success) {
@@ -124,8 +113,8 @@ export class GeneratedActionService {
                     await this.saveAction({
                         name: input.name,
                         description: input.description,
-                        parameters: generatedDefinition.parameters,
-                        code: generatedDefinition.code
+                        parameters: preparedAction.generatedDefinition.parameters,
+                        code: preparedAction.generatedDefinition.code
                     });
                     console.log("Saved action:", input.name);
                 } catch (error) {
@@ -138,6 +127,48 @@ export class GeneratedActionService {
         }
 
         return `<NO ACTION>: Could not create ${input.name}.`;
+    }
+
+    private async prepareAction(input: UseActionInput, attempt: number): Promise<PreparedAction | null> {
+        console.log("Started code generation for action:", input.name);
+        const generatedDefinition = await this.generateActionDefinition(input);
+        console.log("Finished code generation for action:", input.name);
+
+        if (!generatedDefinition) {
+            console.warn(`Generated action "${input.name}" returned invalid metadata on attempt ${attempt}.`);
+            return null;
+        }
+
+        const compiledParameters = this.compileParameters(generatedDefinition.parameters);
+        if (!compiledParameters) {
+            console.warn(`Generated action "${input.name}" failed schema validation on attempt ${attempt}.`);
+            return null;
+        }
+
+        const compiledAction = this.compileAction(generatedDefinition.code);
+        if (!compiledAction) {
+            console.warn(`Generated action "${input.name}" failed syntax validation on attempt ${attempt}.`);
+            return null;
+        }
+
+        const initialArgs = this.mapOrderedArgsToNamedArgs(compiledParameters, input.args);
+        if (!initialArgs) {
+            console.warn(`Generated action "${input.name}" produced a schema that does not match the provided args on attempt ${attempt}.`);
+            return null;
+        }
+
+        const parsedInitialArgs = compiledParameters.safeParse(initialArgs);
+        if (!parsedInitialArgs.success) {
+            console.warn(`Generated action "${input.name}" rejected the provided args on attempt ${attempt}: ${parsedInitialArgs.error.message}`);
+            return null;
+        }
+
+        return {
+            generatedDefinition,
+            compiledAction,
+            compiledParameters,
+            parsedInitialArgs: parsedInitialArgs.data
+        };
     }
 
     private async generateActionDefinition(input: UseActionInput): Promise<GeneratedSkillDefinition | null> {
