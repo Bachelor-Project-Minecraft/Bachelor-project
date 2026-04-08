@@ -7,7 +7,9 @@ export class TntRainScenario extends Scenario {
         super('TntRainScenario', 'Spawns TNT above each agent every 20 seconds.');
     }
 
-    public start(_server: MinecraftServer, agents: Agent[]): void {
+    public async start(server: MinecraftServer, agents: Agent[]): Promise<void> {
+        await super.start(server, agents);
+
         setInterval(() => {
             agents.forEach((agent) => {
                 if (!agent.isAlive) return;

@@ -11,6 +11,7 @@ import type { EnvironmentChangeStep, EnvironmentSnapshot } from './environment/t
 export class Agent {
     public bot: Bot;
     public ai: AIController;
+    public readonly username: string;
     private environment: Environment;
     private previousEnvironmentSnapshot: EnvironmentSnapshot | null = null;
     public server: MinecraftServer;
@@ -19,6 +20,7 @@ export class Agent {
     public isAlive: boolean;
 
     constructor(server: MinecraftServer, username: string, scenario: Scenario) {
+        this.username = username;
         this.bot = mineflayer.createBot({
             host: config.host,
             port: config.port,
@@ -43,7 +45,6 @@ export class Agent {
     private initializeEvents(): void {
         this.bot.on('spawn', () => {
             this.isAlive = true;
-            console.log(`Mineflayer bot spawned as ${this.bot.username}`);
             this.scenario.onAgentSpawn(this);
         });
 

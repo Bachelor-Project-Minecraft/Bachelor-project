@@ -10,7 +10,9 @@ export class ZombieRespawnScenario extends Scenario {
         super('ZombieRespawnScenario', 'Spawns a zombie near each agent on spawn and then respawns zombies once all zombies are dead.');
     }
 
-    public start(_server: MinecraftServer, agents: Agent[]): void {
+    public async start(server: MinecraftServer, agents: Agent[]): Promise<void> {
+        await super.start(server, agents);
+
         setInterval(() => {
             const aliveAgents = agents.filter((agent) => agent.isAlive);
             if (aliveAgents.length === 0) return;

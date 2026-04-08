@@ -54,7 +54,7 @@ async function main() {
         server.sendCommand('gamerule send_command_feedback false');
 
         const agents = config.agents.map((agentName) => new Agent(server, agentName, selectedScenario));
-        selectedScenario.start(server, agents);
+        await selectedScenario.start(server, agents);
         void agents;
     } catch (error) {
         console.error('Failed to boot Minecraft server:', error);
