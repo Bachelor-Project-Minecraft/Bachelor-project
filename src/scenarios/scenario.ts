@@ -6,8 +6,8 @@ const defaultAgentSpawnPosition: Position = { x: 0, y: 0, z: 0 };
 
 export class Scenario {
     constructor(
-        public readonly name: string = 'Scenario',
-        public readonly description: string = 'No description provided yet.'
+        public readonly name: string = 'Base Scenario',
+        public readonly description: string = 'This is a base scenario where no hostile entities are spawned'
     ) {}
 
     public async start(server: MinecraftServer, agents: Agent[]): Promise<void> {

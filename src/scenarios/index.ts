@@ -8,6 +8,7 @@ import { ZombieRespawnScenario } from './variants/zombieRespawnScenario';
 export { Scenario } from './scenario';
 
 export const availableScenarios: Scenario[] = [
+    new Scenario(),
     new TntRainScenario(),
     new ZombieOnSpawnScenario(),
     new ZombieRespawnScenario(),

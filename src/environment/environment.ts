@@ -77,7 +77,7 @@ export class Environment {
 		const allPlayersByName = new Map<string, SnapshotEntity>()
 
 		const hostiles = nearbyEntities
-			.filter((entity) => entity.type === "hostile")
+			.filter((entity) => entity.kind === "Hostile mobs")
 			.map((entity) =>
 				this.toSnapshotEntity(
 					entity.id,
