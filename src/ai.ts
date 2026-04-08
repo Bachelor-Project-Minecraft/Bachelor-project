@@ -47,6 +47,7 @@ export class AIController {
     }
 
     public async processEvent(eventRespondent: string, eventDescription: string) {
+        if (!this.agent.isAlive || this.agent.bot.health <= 0) return;
         if (this.isProcessing) return;
         this.isProcessing = true;
 
@@ -60,6 +61,7 @@ export class AIController {
     }
 
     public async processMessage(sender: string, message: string) {
+        if (!this.agent.isAlive || this.agent.bot.health <= 0) return;
         if (this.isProcessing) return;
         this.isProcessing = true;
 
