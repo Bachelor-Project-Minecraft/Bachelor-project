@@ -29,6 +29,7 @@ export class Environment {
 	private readonly nearbyRadius = 16
 	private readonly nearbyFluidRadius = 8
 	private readonly maxNearbyFluids = 6
+	private readonly maxNearbyTntBlocks = 6
 
 	constructor(private readonly bot: Bot) {}
 
@@ -39,7 +40,7 @@ export class Environment {
 		return compareEnvironmentSnapshots(previous, current)
 	}
 
-	public toEntityMap(entities: SnapshotEntity[]): Map<number, SnapshotEntity> {
+	public toEntityMap(entities: SnapshotEntity[]): Map<string | number, SnapshotEntity> {
 		return toEntityMap(entities)
 	}
 
@@ -87,6 +88,21 @@ export class Environment {
 					botPosition,
 				),
 			)
+
+		const tnt = [
+			...nearbyEntities
+				.filter((entity) => entity.name === "tnt")
+				.map((entity) =>
+					this.toSnapshotEntity(
+						entity.id,
+						entity.name ?? entity.displayName ?? "unknown",
+						undefined,
+						entity.position,
+						botPosition,
+					),
+				),
+			...this.getNearbyTntBlocks(botPosition),
+		]
 
 		const players = nearbyEntities
 			.filter(
@@ -169,6 +185,7 @@ export class Environment {
 			position: this.getPosition(botPosition.x, botPosition.y, botPosition.z),
 			nearby: {
 				hostiles,
+				dangers: tnt,
 				players,
 				droppedItems,
 				world: {
@@ -326,6 +343,34 @@ export class Environment {
 		}
 	}
 
+	private getNearbyTntBlocks(botPosition: Vec3): SnapshotEntity[] {
+		const maxBlockSearchCount = Math.pow(this.nearbyRadius * 2 + 1, 3)
+		const tntPositions = this.bot.findBlocks({
+			matching: (block) => block.name === "tnt",
+			maxDistance: this.nearbyRadius,
+			count: maxBlockSearchCount,
+		})
+
+		return tntPositions
+			.map((position) => this.bot.blockAt(position))
+			.filter((block): block is Block => block !== null && block.name === "tnt")
+			.sort(
+				(left, right) =>
+					left.position.distanceTo(botPosition) -
+					right.position.distanceTo(botPosition),
+			)
+			.slice(0, this.maxNearbyTntBlocks)
+			.map((block) =>
+				this.toSnapshotEntity(
+					`tnt:${block.position.x},${block.position.y},${block.position.z}`,
+					block.name,
+					undefined,
+					block.position,
+					botPosition,
+				),
+			)
+	}
+
 	private getSurroundingBlocks(
 		botBlockPosition: Vec3,
 	): SnapshotSurroundingBlock[] {
@@ -414,7 +459,7 @@ export class Environment {
 	}
 
 	private toSnapshotEntity(
-		id: number,
+		id: string | number,
 		name: string,
 		health: number | undefined,
 		position: Vec3,

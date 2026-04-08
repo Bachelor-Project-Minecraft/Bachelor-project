@@ -14,84 +14,38 @@ export function compareEnvironmentSnapshots(
 	const closeThreatThreshold = 3
 	const significantDistanceDelta = 1
 
-	const previousHostiles = toEntityMap(previous.nearby.hostiles)
-	const currentHostiles = toEntityMap(current.nearby.hostiles)
-	const removedHostiles = previous.nearby.hostiles.filter(
-		(hostile) => !currentHostiles.has(hostile.id),
-	)
-	const addedHostiles = current.nearby.hostiles.filter(
-		(hostile) => !previousHostiles.has(hostile.id),
-	)
-	const movedCloserHostiles = current.nearby.hostiles.flatMap((hostile) => {
-		const previousHostile = previousHostiles.get(hostile.id)
-		if (!previousHostile) {
-			return []
-		}
-
-		const distanceDelta = previousHostile.distance - hostile.distance
-		if (distanceDelta < significantDistanceDelta) {
-			return []
-		}
-
-		return [
-			`- ${hostile.name} id ${hostile.id} moved from ${previousHostile.distance.toFixed(1)} to ${hostile.distance.toFixed(1)} blocks away`,
-		]
-	})
-
-	if (removedHostiles.length > 0) {
-		steps.push({
-			title: "The following are no longer a threat:",
-			details: removedHostiles.map(
-				(hostile) => `- ${hostile.name} id ${hostile.id}`,
-			),
-			shouldTriggerPrompt: false,
-		})
-	}
-
-	if (addedHostiles.length > 0) {
-		steps.push({
-			title:
-				addedHostiles.length === 1
-					? "A new hostile mob is approaching:"
-					: "Multiple new hostile mobs are approaching:",
-			details: addedHostiles.map(
-				(hostile) =>
-					`- ${hostile.name} id ${hostile.id} is ${hostile.distance.toFixed(1)} blocks away`,
-			),
-			shouldTriggerPrompt: true,
-		})
-	}
-
-	if (movedCloserHostiles.length > 0) {
-		steps.push({
-			title: "Hostile mobs are getting closer:",
-			details: movedCloserHostiles,
-			shouldTriggerPrompt: false,
-		})
-	}
-
-	const closeThreats = current.nearby.hostiles.filter(
-		(hostile) => hostile.distance <= closeThreatThreshold,
-	)
-	const previousCloseThreatIds = new Set(
-		previous.nearby.hostiles
-			.filter((hostile) => hostile.distance <= closeThreatThreshold)
-			.map((hostile) => hostile.id),
-	)
-	const newCloseThreats = closeThreats.filter(
-		(hostile) => !previousCloseThreatIds.has(hostile.id),
+	addThreatSteps(
+		steps,
+		previous.nearby.hostiles,
+		current.nearby.hostiles,
+		{
+			removedTitle: "The following hostile mobs are no longer a threat:",
+			detectedTitleSingle: "A new hostile mob is approaching:",
+			detectedTitleMultiple: "Multiple new hostile mobs are approaching:",
+			movedCloserTitle: "Hostile mobs are getting closer:",
+			immediateRangeTitle: "Hostile mobs are now in immediate range:",
+			formatThreatName: (threat) => `${threat.name} id ${threat.id}`,
+		},
+		closeThreatThreshold,
+		significantDistanceDelta,
 	)
 
-	if (newCloseThreats.length > 0) {
-		steps.push({
-			title: "Hostiles are now in immediate range:",
-			details: newCloseThreats.map(
-				(hostile) =>
-					`- ${hostile.name} id ${hostile.id} is ${hostile.distance.toFixed(1)} blocks away`,
-			),
-			shouldTriggerPrompt: false,
-		})
-	}
+	addThreatSteps(
+		steps,
+		previous.nearby.dangers,
+		current.nearby.dangers,
+		{
+			removedTitle: "Nearby TNT is no longer a threat:",
+			detectedTitleSingle: "New TNT is nearby:",
+			detectedTitleMultiple: "Multiple TNT blocks are nearby:",
+			movedCloserTitle: "TNT is getting closer:",
+			immediateRangeTitle: "TNT is now in immediate range:",
+			formatThreatName: (threat) =>
+				`TNT at ${threat.position.x}, ${threat.position.y}, ${threat.position.z}`,
+		},
+		closeThreatThreshold,
+		significantDistanceDelta,
+	)
 
 	if (current.health < previous.health - 4) {
 		const healthLoss = previous.health - current.health
@@ -134,8 +88,103 @@ export function compareEnvironmentSnapshots(
 
 export function toEntityMap(
 	entities: SnapshotEntity[],
-): Map<number, SnapshotEntity> {
+): Map<string | number, SnapshotEntity> {
 	return new Map(entities.map((entity) => [entity.id, entity]))
+}
+
+function addThreatSteps(
+	steps: EnvironmentChangeStep[],
+	previousThreats: SnapshotEntity[],
+	currentThreats: SnapshotEntity[],
+	labels: {
+		removedTitle: string
+		detectedTitleSingle: string
+		detectedTitleMultiple: string
+		movedCloserTitle: string
+		immediateRangeTitle: string
+		formatThreatName: (threat: SnapshotEntity) => string
+	},
+	closeThreatThreshold: number,
+	significantDistanceDelta: number,
+) {
+	const previousThreatMap = toEntityMap(previousThreats)
+	const currentThreatMap = toEntityMap(currentThreats)
+	
+	const removedThreats = previousThreats.filter(
+		(threat) => !currentThreatMap.has(threat.id),
+	)
+
+	const addedThreats = currentThreats.filter(
+		(threat) => !previousThreatMap.has(threat.id),
+	)
+
+	const movedCloserThreats = currentThreats.flatMap((threat) => {
+		const previousThreat = previousThreatMap.get(threat.id)
+		if (!previousThreat) {
+			return []
+		}
+
+		const distanceDelta = previousThreat.distance - threat.distance
+		if (distanceDelta < significantDistanceDelta) {
+			return []
+		}
+
+		return [
+			`- ${labels.formatThreatName(threat)} moved from ${previousThreat.distance.toFixed(1)} to ${threat.distance.toFixed(1)} blocks away`,
+		]
+	})
+
+	const newCloseThreats = currentThreats.filter((threat) => {
+		if (threat.distance > closeThreatThreshold) {
+			return false
+		}
+
+		const previousThreat = previousThreatMap.get(threat.id)
+		return !previousThreat || previousThreat.distance > closeThreatThreshold
+	})
+
+	if (removedThreats.length > 0) {
+		steps.push({
+			title: labels.removedTitle,
+			details: removedThreats.map(
+				(threat) => `- ${labels.formatThreatName(threat)}`,
+			),
+			shouldTriggerPrompt: false,
+		})
+	}
+
+	if (addedThreats.length > 0) {
+		steps.push({
+			title:
+				addedThreats.length === 1
+					? labels.detectedTitleSingle
+					: labels.detectedTitleMultiple,
+			details: addedThreats.map(
+				(threat) =>
+					`- ${labels.formatThreatName(threat)} is ${threat.distance.toFixed(1)} blocks away`,
+			),
+			shouldTriggerPrompt: true,
+		})
+	}
+
+	if (movedCloserThreats.length > 0) {
+		steps.push({
+			title: labels.movedCloserTitle,
+			details: movedCloserThreats,
+			shouldTriggerPrompt: false,
+		})
+	}
+
+	if (newCloseThreats.length > 0) {
+		steps.push({
+			title: labels.immediateRangeTitle,
+			details: newCloseThreats.map(
+				(threat) =>
+					`- ${labels.formatThreatName(threat)} is ${threat.distance.toFixed(1)} blocks away`,
+			),
+			shouldTriggerPrompt: false,
+		})
+	}
 }
 
 export function diffInventory(

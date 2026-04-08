@@ -45,6 +45,7 @@ export class Agent {
     private initializeEvents(): void {
         this.bot.on('spawn', () => {
             this.isAlive = true;
+            this.previousEnvironmentSnapshot = this.observeEnvironment();
             this.scenario.onAgentSpawn(this);
         });
 
@@ -76,8 +77,7 @@ export class Agent {
         }, 2000);
     }
 
-    private updateEnvironmentSnapshot(): EnvironmentChangeStep[] {
-        const currentSnapshot = this.observeEnvironment();
+    private updateEnvironmentSnapshot(currentSnapshot: EnvironmentSnapshot): EnvironmentChangeStep[] {
         const previousSnapshot = this.previousEnvironmentSnapshot;
         this.previousEnvironmentSnapshot = currentSnapshot;
 
@@ -104,7 +104,8 @@ export class Agent {
     private checkForDanger() {
         if (!this.bot.entity) return;
 
-        const environmentChanges = this.updateEnvironmentSnapshot();
+        const currentSnapshot = this.observeEnvironment();
+        const environmentChanges = this.updateEnvironmentSnapshot(currentSnapshot);
         if (environmentChanges.length === 0) return;
         if (!this.hasTriggeringChanges(environmentChanges)) return;
 
