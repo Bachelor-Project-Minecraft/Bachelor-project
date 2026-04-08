@@ -1,5 +1,4 @@
-import type { Agent } from '../agent';
-import { Scenario } from './scenario';
+import { Scenario } from '../scenario';
 
 export class ZombieOnSpawnScenario extends Scenario {
     constructor() {

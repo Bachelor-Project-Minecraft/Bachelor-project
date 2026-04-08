@@ -1,9 +1,9 @@
 import { readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { getRuntimePath } from '../utils/util';
 import { Scenario } from './scenario';
-import { TntRainScenario } from './tntRainScenario';
-import { ZombieOnSpawnScenario } from './zombieOnSpawnScenario';
-import { ZombieRespawnScenario } from './zombieRespawnScenario';
+import { TntRainScenario } from './variants/tntRainScenario';
+import { ZombieOnSpawnScenario } from './variants/zombieOnSpawnScenario';
+import { ZombieRespawnScenario } from './variants/zombieRespawnScenario';
 
 export { Scenario } from './scenario';
 

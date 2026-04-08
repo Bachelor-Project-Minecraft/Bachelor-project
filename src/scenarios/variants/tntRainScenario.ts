@@ -1,6 +1,6 @@
-import type { Agent } from '../agent';
-import type { MinecraftServer } from '../minecraftServer';
-import { Scenario } from './scenario';
+import type { Agent } from '../../agent';
+import type { MinecraftServer } from '../../minecraftServer';
+import { Scenario } from '../scenario';
 
 export class TntRainScenario extends Scenario {
     constructor() {

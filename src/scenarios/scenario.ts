@@ -1,17 +1,6 @@
 import type { Agent } from '../agent';
 import type { MinecraftServer } from '../minecraftServer';
-
-type Position = {
-    x: number;
-    y: number;
-    z: number;
-};
-
-type EntitySpawn = {
-    type: string;
-    position: Position;
-    nbt?: string;
-};
+import type { EntitySpawn, Position } from './types';
 
 export class Scenario {
     constructor(

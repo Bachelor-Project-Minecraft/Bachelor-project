@@ -1,6 +1,6 @@
-import type { Agent } from '../agent';
-import type { MinecraftServer } from '../minecraftServer';
-import { Scenario } from './scenario';
+import type { Agent } from '../../agent';
+import type { MinecraftServer } from '../../minecraftServer';
+import { Scenario } from '../scenario';
 
 const zombieTag = 'scenario_respawn_zombie';
 const respawnMarkerTag = 'scenario_respawn_zombie_marker';
