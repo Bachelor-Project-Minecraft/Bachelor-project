@@ -2,6 +2,8 @@ import type { Agent } from '../agent';
 import type { MinecraftServer } from '../minecraftServer';
 import type { EntitySpawn, Position } from './types';
 
+const defaultAgentSpawnPosition: Position = { x: 0, y: 0, z: 0 };
+
 export class Scenario {
     constructor(
         public readonly name: string = 'Scenario',
@@ -10,15 +12,14 @@ export class Scenario {
 
     public async start(server: MinecraftServer, agents: Agent[]): Promise<void> {
         const configuredSpawnPositions = this.getAgentSpawnPositions();
-        const agentsToPlace = agents.filter((agent) => configuredSpawnPositions[agent.username]);
+        const agentsToPlace = agents;
 
         while (agentsToPlace.some((agent) => !agent.isAlive)) {
             await new Promise((resolve) => setTimeout(resolve, 50));
         }
 
         agentsToPlace.forEach((agent) => {
-            const position = configuredSpawnPositions[agent.username];
-            if (!position) return;
+            const position = configuredSpawnPositions[agent.username] ?? defaultAgentSpawnPosition;
 
             server.sendCommand(
                 `tp ${agent.username} ${position.x} ${position.y} ${position.z}`
