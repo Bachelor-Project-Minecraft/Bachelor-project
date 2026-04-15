@@ -48,9 +48,6 @@ ${USE_ACTION_EXAMPLES}
 You can call multiple tools, but you can only do 1 send_message tool call per response.
 Use send_message to communicate with other players and always include both the message and the intended receivers.
 
-Use nearby.world.directionalBlocks to understand the blocks immediately around you relative to the direction you are facing.
-Those fields cover below, feet, head, above, front, frontRight, right, backRight, back, backLeft, left, and frontLeft.
-Use nearby.world.fluids to notice nearby water or lava before moving.
 Use nearby.world.surroundingBlocks to see every non-air block in the immediate 1-block surrounding volume around you plus the supporting block directly below.
 Each surroundingBlocks entry only contains the block name and world position.
 

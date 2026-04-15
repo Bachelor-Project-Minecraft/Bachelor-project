@@ -14,9 +14,6 @@ import {
 	type SnapshotEntity,
 	type SnapshotPosition,
 	type EnvironmentSnapshot,
-	type SnapshotDirectionalBlocks,
-	type SnapshotBlock,
-	type SnapshotFluidBlock,
 	type SnapshotInventoryItem,
 	type SnapshotSurroundingBlock,
 } from "./types"
@@ -27,8 +24,6 @@ const hiddenPlayersFromBots = new Set(
 
 export class Environment {
 	private readonly nearbyRadius = 16
-	private readonly nearbyFluidRadius = 8
-	private readonly maxNearbyFluids = 6
 	private readonly maxNearbyTntBlocks = 6
 
 	constructor(private readonly bot: Bot) {}
@@ -69,11 +64,6 @@ export class Environment {
 			if (entity.id === botEntity.id) return false
 			return entity.position.distanceTo(botPosition) <= this.nearbyRadius
 		})
-		const directionalBlocks = this.getDirectionalBlocks(
-			botBlockPosition,
-			botEntity.yaw,
-		)
-		const nearbyFluids = this.getNearbyFluids(botPosition, botBlockPosition)
 		const surroundingBlocks = this.getSurroundingBlocks(botBlockPosition)
 		const allPlayersByName = new Map<string, SnapshotEntity>()
 
@@ -189,8 +179,6 @@ export class Environment {
 				players,
 				droppedItems,
 				world: {
-					directionalBlocks,
-					fluids: nearbyFluids,
 					surroundingBlocks,
 				},
 			},
@@ -216,130 +204,6 @@ export class Environment {
 			x: roundNum(x),
 			y: roundNum(y),
 			z: roundNum(z),
-		}
-	}
-
-	private getDirectionalBlocks(
-		botBlockPosition: Vec3,
-		yaw: number,
-	): SnapshotDirectionalBlocks {
-		const { forward, right, back, left } = this.getRelativeDirections(yaw)
-
-		return {
-			below: this.getBlockSnapshot(botBlockPosition, new Vec3(0, -1, 0)),
-			feet: this.getBlockSnapshot(botBlockPosition, new Vec3(0, 0, 0)),
-			head: this.getBlockSnapshot(botBlockPosition, new Vec3(0, 1, 0)),
-			above: this.getBlockSnapshot(botBlockPosition, new Vec3(0, 2, 0)),
-			front: this.getBlockSnapshot(botBlockPosition, forward),
-			frontRight: this.getBlockSnapshot(
-				botBlockPosition,
-				new Vec3(forward.x + right.x, 0, forward.z + right.z),
-			),
-			right: this.getBlockSnapshot(botBlockPosition, right),
-			backRight: this.getBlockSnapshot(
-				botBlockPosition,
-				new Vec3(back.x + right.x, 0, back.z + right.z),
-			),
-			back: this.getBlockSnapshot(botBlockPosition, back),
-			backLeft: this.getBlockSnapshot(
-				botBlockPosition,
-				new Vec3(back.x + left.x, 0, back.z + left.z),
-			),
-			left: this.getBlockSnapshot(botBlockPosition, left),
-			frontLeft: this.getBlockSnapshot(
-				botBlockPosition,
-				new Vec3(forward.x + left.x, 0, forward.z + left.z),
-			),
-		}
-	}
-
-	private getRelativeDirections(yaw: number) {
-		const facingIndex = ((Math.round((yaw + Math.PI) / (Math.PI / 2)) % 4) + 4) % 4
-		const forwardByFacing = [
-			new Vec3(0, 0, 1),
-			new Vec3(-1, 0, 0),
-			new Vec3(0, 0, -1),
-			new Vec3(1, 0, 0),
-		]
-		const forward = forwardByFacing[facingIndex]
-		const right = new Vec3(-forward.z, 0, forward.x)
-		const back = new Vec3(-forward.x, 0, -forward.z)
-		const left = new Vec3(forward.z, 0, -forward.x)
-
-		return { forward, right, back, left }
-	}
-
-	private getBlockSnapshot(
-		botBlockPosition: Vec3,
-		relativeOffset: Vec3,
-	): SnapshotBlock {
-		const blockPosition = botBlockPosition.offset(
-			relativeOffset.x,
-			relativeOffset.y,
-			relativeOffset.z,
-		)
-		const block = this.bot.blockAt(blockPosition)
-
-		return {
-			name: block?.name ?? "air",
-			position: this.getPosition(
-				blockPosition.x,
-				blockPosition.y,
-				blockPosition.z,
-			),
-			relativeOffset: this.getPosition(
-				relativeOffset.x,
-				relativeOffset.y,
-				relativeOffset.z,
-			),
-		}
-	}
-
-	private getNearbyFluids(
-		botPosition: Vec3,
-		botBlockPosition: Vec3,
-	): SnapshotFluidBlock[] {
-		const maxBlockSearchCount = Math.pow(this.nearbyFluidRadius * 2 + 1, 3)
-		const fluidPositions = this.bot.findBlocks({
-			matching: (block) => block.name === "water" || block.name === "lava",
-			maxDistance: this.nearbyFluidRadius,
-			count: maxBlockSearchCount,
-		})
-
-		return fluidPositions
-			.map((position) => this.bot.blockAt(position))
-			.filter(
-				(block): block is Block =>
-					block !== null &&
-					(block.name === "water" || block.name === "lava"),
-			)
-			.sort(
-				(left, right) =>
-					left.position.distanceTo(botPosition) -
-					right.position.distanceTo(botPosition),
-			)
-			.slice(0, this.maxNearbyFluids)
-			.map((block) => this.toSnapshotFluidBlock(block, botPosition, botBlockPosition))
-	}
-
-	private toSnapshotFluidBlock(
-		block: Block,
-		botPosition: Vec3,
-		botBlockPosition: Vec3,
-	): SnapshotFluidBlock {
-		return {
-			name: block.name,
-			distance: roundNum(block.position.distanceTo(botPosition)),
-			position: this.getPosition(
-				block.position.x,
-				block.position.y,
-				block.position.z,
-			),
-			relativeOffset: this.getPosition(
-				block.position.x - botBlockPosition.x,
-				block.position.y - botBlockPosition.y,
-				block.position.z - botBlockPosition.z,
-			),
 		}
 	}
 
