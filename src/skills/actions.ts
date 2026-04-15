@@ -143,14 +143,14 @@ const UseActionToolParameters: ToolSchema = {
 };
 
 export const createUseActionSkill = (actionService: GeneratedActionService): Skill => ({
-    name: 'use_action',
-    description: 'Create and execute a new Minecraft action',
+    name: 'new_action',
+    description: 'Create and execute a new Minecraft action that does not yet exist',
     parameters: UseActionParameters,
     toolParameters: UseActionToolParameters,
     execute: async (bot, args) => {
         const parsedArgs = UseActionParameters.safeParse(args);
         if (!parsedArgs.success) {
-            return '<NO ACTION>: Invalid use_action arguments.';
+            return '<NO ACTION>: Invalid new_action arguments.';
         }
 
         return actionService.useAction(bot, parsedArgs.data);

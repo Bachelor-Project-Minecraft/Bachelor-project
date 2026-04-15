@@ -1,32 +1,28 @@
 import { JsonValue } from "../types";
 
-const USE_ACTION_EXAMPLES = `Examples of valid use_action calls:
-1. Move to coordinates:
-use_action({
-  "name": "GoToPosition",
-  "description": "Walk to a target world position using pathfinder",
-  "args": [{ "x": 5.2, "y": 64, "z": -3.5 }]
-})
-
-2. Follow a player for a while:
-use_action({
+const USE_ACTION_EXAMPLES = `Examples of valid new_action calls:
+1. Follow a player for a while:
+new_action({
   "name": "FollowPlayer",
   "description": "Follow a named player with pathfinder",
   "args": ["MarcusVange", { "distance": 2, "maxTicks": 120 }]
 })
-
-3. Mine a block at coordinates:
-use_action({
-  "name": "MineBlockAt",
-  "description": "Move to a block and dig it",
-  "args": [{ "x": 10, "y": 63, "z": 4 }]
+From now on this action can be called directly like this:
+FollowPlayer({
+  "playerName": "MarcusVange",
+  "options": { "distance": 2, "maxTicks": 120 }
 })
 
-4. Pick up a dropped item:
-use_action({
+2. Pick up a dropped item:
+new_action({
   "name": "PickUpItem",
   "description": "Move to a dropped item and collect it",
   "args": ["diamond", { "maxDistance": 24 }]
+})
+From now on this action can be called directly like this:
+PickUpItem({
+  "itemName": "diamond",
+  "options": { "maxDistance": 24 }
 })`;
 
 export const SYSTEM_PROMPT = `You are a Minecraft Bot named {NAME}.
@@ -37,9 +33,9 @@ If a message is just empty talk or responding would not help survival, use do_no
 Always execute a tool if the situation requires action.
 Use multiple tools in the same response when needed. For instance you can ask for help from another player using send_message and then use attack_nearest to attack a monster in the same response.
 Collaboration is important for survival, so communicate with other players using send_message when it is helpful to coordinate or ask for help.
-Prefer to use existing tools to accomplish tasks, but if there is not an existing tool that matches the situation, use the use_action tool to create a new action for that situation.
-Use the use_action tool to create a new action. Use this when the other tool calls do not match the situation.
-For use_action, always include JSON fields named "name", "description", and "args".
+Prefer to use existing tools to accomplish tasks, but if there is not an existing tool that matches the situation, use the new_action tool to create a new action for that situation.
+Use the new_action tool to create a new action. Use this when the other tool calls do not match the situation, so it is important that you check whether any other tool is relevant before using new_action. The new_action tool is solely for new actions and not for doing something that we can already do with another tools
+For new_action, always include JSON fields named "name", "description", and "args".
 The args array can contain strings, numbers, booleans, null, arrays, and objects.
 Do not wrap arrays or objects inside quoted JSON strings. Pass them as raw JSON values.
 
@@ -158,7 +154,7 @@ Validation error:
 {VALIDATION_ERROR}
 
 Retry by calling the same tool with corrected JSON arguments only if it is still needed.
-For use_action, always include "name", "description", and "args".
+For new_action, always include "name", "description", and "args".
 For structured fields like position or options, pass raw JSON objects and arrays instead of quoted JSON strings.
 Do not wrap arrays or objects in quotes.`;
 

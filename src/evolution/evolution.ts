@@ -1,9 +1,18 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { config } from '../config';
 import { LLMClient } from '../llmClient';
 import { getKnowledgebaseUpdatePrompt } from '../utils/prompts';
 import { getRuntimePath } from '../utils/util';
 import { AgentLogRecord } from './agentLogStore';
+
+interface StoredAction {
+    name: string;
+    description: string;
+    parameters: string;
+    code: string;
+    count: number;
+}
 
 export class Evolution {
     public static getKnowledgebase(): string {
@@ -49,10 +58,30 @@ export class Evolution {
         }
     }
 
+    public static updateGenerationSkills(): void {
+        try {
+            const filePath = Evolution.getGenerationSkillsFilePath();
+            const existingSkills = Evolution.getStoredActions(filePath);
+            const existingSkillNames = new Set(existingSkills.map((skill) => Evolution.normalizeText(skill.name)));
+            const newSkills = Evolution.getStoredActions(getRuntimePath('skills', 'SKILLS.json'))
+                .filter((skill) => skill.count >= config.actions.persistSkillMinUseCount)
+                .filter((skill) => !existingSkillNames.has(Evolution.normalizeText(skill.name)))
+                .sort((left, right) => right.count - left.count)
+                .slice(0, 2);
+            const skills = [...existingSkills, ...newSkills];
+
+            fs.mkdirSync(path.dirname(filePath), { recursive: true });
+            fs.writeFileSync(filePath, `${JSON.stringify(skills, null, 2)}\n`, 'utf8');
+        } catch (error) {
+            console.error('Failed to update generation skills:', error);
+        }
+    }
+
     public static resetGenerationLine(): void {
         for (const filePath of [
             Evolution.getGenerationsFilePath(),
-            Evolution.getKnowledgebaseFilePath()
+            Evolution.getKnowledgebaseFilePath(),
+            Evolution.getGenerationSkillsFilePath()
         ]) {
             if (fs.existsSync(filePath)) {
                 fs.rmSync(filePath, { force: true });
@@ -70,6 +99,51 @@ export class Evolution {
 
     private static getKnowledgebaseFilePath(): string {
         return getRuntimePath('evolution', 'knowledgebase.txt');
+    }
+
+    private static getGenerationSkillsFilePath(): string {
+        return getRuntimePath('evolution', 'generationSkills.json');
+    }
+
+    private static getStoredActions(filePath: string): StoredAction[] {
+        if (!fs.existsSync(filePath)) {
+            return [];
+        }
+
+        try {
+            const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            if (!Array.isArray(parsed)) {
+                return [];
+            }
+
+            return parsed.filter(Evolution.isStoredAction);
+        } catch {
+            return [];
+        }
+    }
+
+    private static normalizeText(value: string): string {
+        return value.trim().toLowerCase();
+    }
+
+    private static isStoredAction(value: unknown): value is StoredAction {
+        if (!value || typeof value !== 'object') {
+            return false;
+        }
+
+        const action = value as Partial<StoredAction>;
+        const count = action.count;
+        return typeof action.name === 'string'
+            && /^[A-Za-z][A-Za-z0-9_]*$/.test(action.name)
+            && typeof action.description === 'string'
+            && action.description.length > 0
+            && typeof action.parameters === 'string'
+            && action.parameters.length > 0
+            && typeof action.code === 'string'
+            && action.code.length > 0
+            && typeof count === 'number'
+            && Number.isInteger(count)
+            && count >= 0;
     }
 
     private static getStoredLogs(): AgentLogRecord[] {

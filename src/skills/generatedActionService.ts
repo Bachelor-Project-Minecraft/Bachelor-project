@@ -1,6 +1,7 @@
 import { Bot } from "mineflayer";
 import { Movements as PathfinderMovements, goals as PathfinderGoals } from "mineflayer-pathfinder";
 import * as fs from "fs/promises";
+import * as fsSync from "fs";
 import { Vec3 as Vec3Constructor } from "vec3";
 import { z } from "zod";
 import { config } from "../config";
@@ -14,6 +15,7 @@ interface StoredAction {
     description: string;
     parameters: string;
     code: string;
+    count: number;
 }
 
 interface UseActionInput {
@@ -46,7 +48,8 @@ const StoredActionSchema = z.object({
     name: z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/),
     description: z.string().min(1),
     parameters: z.string().min(1),
-    code: z.string().min(1)
+    code: z.string().min(1),
+    count: z.number().int().min(0)
 });
 
 const GeneratedSkillDefinitionSchema = z.object({
@@ -65,6 +68,7 @@ interface PreparedAction {
 
 export class GeneratedActionService {
     private readonly skillsPath = getRuntimePath('skills', 'SKILLS.json');
+    private readonly generationSkillsPath = getRuntimePath('evolution', 'generationSkills.json');
 
     constructor(
         private readonly llm: LLMClient,
@@ -77,6 +81,31 @@ export class GeneratedActionService {
         private readonly registerGeneratedSkill: RegisterGeneratedSkill,
         private readonly runWhileWorldFrozen: RunWhileWorldFrozen
     ) {}
+
+    public loadGenerationSkills(): void {
+        const actions = this.loadActionsSync(this.generationSkillsPath);
+
+        for (const action of actions) {
+            const compiledParameters = this.compileParameters(action.parameters);
+            if (!compiledParameters) {
+                console.warn(`Persisted action "${action.name}" could not be loaded because its parameters are invalid.`);
+                continue;
+            }
+
+            const compiledAction = this.compileAction(action.code);
+            if (!compiledAction) {
+                console.warn(`Persisted action "${action.name}" could not be loaded because its code is invalid.`);
+                continue;
+            }
+
+            const registrationResult = this.registerGeneratedSkill(
+                this.createSkillFromStoredAction(action, compiledParameters, compiledAction, false)
+            );
+            if (!registrationResult.success) {
+                console.warn(`Persisted action "${action.name}" could not be registered: ${registrationResult.error}`);
+            }
+        }
+    }
 
     public async useAction(bot: Bot, input: UseActionInput): Promise<string> {
         for (let attempt = 1; attempt <= config.actions.generationRetries; attempt++) {
@@ -97,11 +126,17 @@ export class GeneratedActionService {
                 );
                 console.log("Finished action execution for:", input.name);
 
-                const generatedSkill = this.createGeneratedSkill(
-                    input.name,
-                    input.description,
+                const storedAction = {
+                    name: input.name,
+                    description: input.description,
+                    parameters: preparedAction.generatedDefinition.parameters,
+                    code: preparedAction.generatedDefinition.code,
+                    count: 1
+                };
+                const generatedSkill = this.createSkillFromStoredAction(
+                    storedAction,
                     preparedAction.compiledParameters,
-                    (runtimeBot, runtimeArgs) => this.runAction(preparedAction.compiledAction, runtimeBot, runtimeArgs)
+                    preparedAction.compiledAction
                 );
                 const registrationResult = this.registerGeneratedSkill(generatedSkill);
                 if (!registrationResult.success) {
@@ -110,12 +145,7 @@ export class GeneratedActionService {
                 }
 
                 try {
-                    await this.saveAction({
-                        name: input.name,
-                        description: input.description,
-                        parameters: preparedAction.generatedDefinition.parameters,
-                        code: preparedAction.generatedDefinition.code
-                    });
+                    await this.saveAction(storedAction);
                     console.log("Saved action:", input.name);
                 } catch (error) {
                     console.error(`Generated action "${input.name}" was registered but could not be written to SKILLS.json:`, error);
@@ -213,6 +243,26 @@ export class GeneratedActionService {
         return typeof result === 'string' ? result : String(result);
     }
 
+    private createSkillFromStoredAction(
+        action: StoredAction,
+        compiledParameters: z.ZodObject<any>,
+        compiledAction: ActionExecutor,
+        shouldRecordUse = true
+    ): Skill {
+        return this.createGeneratedSkill(
+            action.name,
+            action.description,
+            compiledParameters,
+            async (runtimeBot, runtimeArgs) => {
+                const result = await this.runAction(compiledAction, runtimeBot, runtimeArgs);
+                if (shouldRecordUse) {
+                    await this.recordActionUse(action);
+                }
+                return result;
+            }
+        );
+    }
+
     private mapOrderedArgsToNamedArgs(schema: z.ZodObject<any>, args: JsonValue[]): Record<string, JsonValue> | null {
         const shape = schema.shape;
         const parameterNames = Object.keys(shape);
@@ -240,6 +290,22 @@ export class GeneratedActionService {
         await fs.writeFile(this.skillsPath, `${JSON.stringify(nextActions, null, 2)}\n`, 'utf8');
     }
 
+    private async recordActionUse(action: StoredAction): Promise<void> {
+        try {
+            const existingActions = await this.loadActions();
+            const existingAction = existingActions.find(
+                (candidate) => this.normalizeText(candidate.name) === this.normalizeText(action.name)
+            );
+            const nextCount = existingAction ? existingAction.count + 1 : 1;
+            await this.saveAction({
+                ...action,
+                count: nextCount
+            });
+        } catch (error) {
+            console.error(`Could not update usage count for generated action "${action.name}":`, error);
+        }
+    }
+
     private async loadActions(): Promise<StoredAction[]> {
         try {
             const content = await fs.readFile(this.skillsPath, 'utf8');
@@ -255,6 +321,27 @@ export class GeneratedActionService {
             });
         } catch (error) {
             console.warn('Could not load SKILLS.json audit log, starting from an empty list.', error);
+            return [];
+        }
+    }
+
+    private loadActionsSync(filePath: string): StoredAction[] {
+        if (!fsSync.existsSync(filePath)) {
+            return [];
+        }
+
+        try {
+            const parsed = JSON.parse(fsSync.readFileSync(filePath, 'utf8'));
+            if (!Array.isArray(parsed)) {
+                return [];
+            }
+
+            return parsed.filter((entry): entry is StoredAction => {
+                const result = StoredActionSchema.safeParse(entry);
+                return result.success;
+            });
+        } catch (error) {
+            console.warn(`Could not load generated actions from ${filePath}.`, error);
             return [];
         }
     }

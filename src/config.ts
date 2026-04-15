@@ -26,7 +26,8 @@ export const config = {
     summarizeChunkSize: 5
   },
   actions: {
-    generationRetries: 3
+    generationRetries: 3,
+    persistSkillMinUseCount: 2
   },
   llm: {
     chat: chatModel,

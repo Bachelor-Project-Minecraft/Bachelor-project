@@ -31,6 +31,7 @@ export class SkillRegistry {
         this.registerBuiltInSkill(AttackSkill);
         this.registerBuiltInSkill(MineBlockSkill);
         this.registerBuiltInSkill(createUseActionSkill(actionService));
+        actionService.loadGenerationSkills();
         this.builtInsInitialized = true;
     }
 

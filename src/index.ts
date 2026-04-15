@@ -22,7 +22,8 @@ async function main() {
     try {
         const hasExistingGenerationLine =
             existsSync(getRuntimePath('evolution', 'generations.txt'))
-            || existsSync(getRuntimePath('evolution', 'knowledgebase.txt'));
+            || existsSync(getRuntimePath('evolution', 'knowledgebase.txt'))
+            || existsSync(getRuntimePath('evolution', 'generationSkills.json'));
             
         const shouldContinueGenerationLine = hasExistingGenerationLine
             ? await promptToContinueCurrentGenerationLine()
@@ -41,6 +42,7 @@ async function main() {
 
         const server = new MinecraftServer();
         if (hasExistingGenerationLine && shouldContinueGenerationLine) {
+            Evolution.updateGenerationSkills();
             await Evolution.updateKnowledgebase();
         }
         AgentLogStore.resetLogsDirectory();
