@@ -3,24 +3,24 @@ import { JsonValue } from "../types";
 const USE_ACTION_EXAMPLES = `Examples of valid new_action calls:
 1. Follow a player for a while:
 new_action({
-  "name": "FollowPlayer",
+  "name": "follow_player",
   "description": "Follow a named player with pathfinder",
   "args": ["MarcusVange", { "distance": 2, "maxTicks": 120 }]
 })
 From now on this action can be called directly like this:
-FollowPlayer({
+follow_player({
   "playerName": "MarcusVange",
   "options": { "distance": 2, "maxTicks": 120 }
 })
 
 2. Pick up a dropped item:
 new_action({
-  "name": "PickUpItem",
+  "name": "pick_up_item",
   "description": "Move to a dropped item and collect it",
   "args": ["diamond", { "maxDistance": 24 }]
 })
 From now on this action can be called directly like this:
-PickUpItem({
+pick_up_item({
   "itemName": "diamond",
   "options": { "maxDistance": 24 }
 })`;
@@ -36,6 +36,7 @@ Collaboration is important for survival, so communicate with other players using
 Prefer to use existing tools to accomplish tasks, but if there is not an existing tool that matches the situation, use the new_action tool to create a new action for that situation.
 Use the new_action tool to create a new action. Use this when the other tool calls do not match the situation, so it is important that you check whether any other tool is relevant before using new_action. The new_action tool is solely for new actions and not for doing something that we can already do with another tools
 For new_action, always include JSON fields named "name", "description", and "args".
+Action names must use lowercase snake_case with underscores only.
 The args array can contain strings, numbers, booleans, null, arrays, and objects.
 Do not wrap arrays or objects inside quoted JSON strings. Pass them as raw JSON values.
 

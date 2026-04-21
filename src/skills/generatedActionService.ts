@@ -108,9 +108,15 @@ export class GeneratedActionService {
     }
 
     public async useAction(bot: Bot, input: UseActionInput): Promise<string> {
+        const actionName = this.normalizeActionName(input.name);
+        const normalizedInput = {
+            ...input,
+            name: actionName
+        };
+
         for (let attempt = 1; attempt <= config.actions.generationRetries; attempt++) {
             const preparedAction = await this.runWhileWorldFrozen(async () =>
-                this.prepareAction(input, attempt)
+                this.prepareAction(normalizedInput, attempt)
             );
 
             if (!preparedAction) {
@@ -118,17 +124,17 @@ export class GeneratedActionService {
             }
 
             try {
-                console.log("Started action execution for:", input.name);
+                console.log("Started action execution for:", actionName);
                 const result = await this.runAction(
                     preparedAction.compiledAction,
                     bot,
                     preparedAction.parsedInitialArgs
                 );
-                console.log("Finished action execution for:", input.name);
+                console.log("Finished action execution for:", actionName);
 
                 const storedAction = {
-                    name: input.name,
-                    description: input.description,
+                    name: actionName,
+                    description: normalizedInput.description,
                     parameters: preparedAction.generatedDefinition.parameters,
                     code: preparedAction.generatedDefinition.code,
                     count: 1
@@ -140,23 +146,23 @@ export class GeneratedActionService {
                 );
                 const registrationResult = this.registerGeneratedSkill(generatedSkill);
                 if (!registrationResult.success) {
-                    console.warn(`Generated action "${input.name}" could not be registered: ${registrationResult.error}`);
+                    console.warn(`Generated action "${actionName}" could not be registered: ${registrationResult.error}`);
                     continue;
                 }
 
                 try {
                     await this.saveAction(storedAction);
-                    console.log("Saved action:", input.name);
+                    console.log("Saved action:", actionName);
                 } catch (error) {
-                    console.error(`Generated action "${input.name}" was registered but could not be written to SKILLS.json:`, error);
+                    console.error(`Generated action "${actionName}" was registered but could not be written to SKILLS.json:`, error);
                 }
                 return result;
             } catch (error) {
-                console.error(`Generated action "${input.name}" failed during execution:`, error);
+                console.error(`Generated action "${actionName}" failed during execution:`, error);
             }
         }
 
-        return `<NO ACTION>: Could not create ${input.name}.`;
+        return `<NO ACTION>: Could not create ${actionName}.`;
     }
 
     private async prepareAction(input: UseActionInput, attempt: number): Promise<PreparedAction | null> {
@@ -362,5 +368,14 @@ export class GeneratedActionService {
 
     private normalizeText(value: string): string {
         return value.trim().toLowerCase();
+    }
+
+    private normalizeActionName(value: string): string {
+        return value
+            .trim()
+            .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+            .replace(/[\s-]+/g, '_')
+            .replace(/_+/g, '_')
+            .toLowerCase();
     }
 }

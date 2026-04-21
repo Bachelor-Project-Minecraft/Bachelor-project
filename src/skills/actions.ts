@@ -117,6 +117,23 @@ export const MineBlockSkill: Skill = {
     }
 };
 
+export const GoToPositionSkill: Skill = {
+    name: 'go_to_position',
+    description: 'Move to the given coordinates.',
+    parameters: z.object({
+        x: z.number().describe('The target x coordinate'),
+        y: z.number().describe('The target y coordinate'),
+        z: z.number().describe('The target z coordinate')
+    }),
+    execute: async (bot, args) => {
+        const position = new Vec3(Math.floor(args.x), Math.floor(args.y), Math.floor(args.z));
+        const movements = new Movements(bot);
+        bot.pathfinder.setMovements(movements);
+        await bot.pathfinder.goto(new goals.GoalNear(position.x, position.y, position.z, 1));
+        return `<MOVED>: Reached (${position.x}, ${position.y}, ${position.z}).`;
+    }
+};
+
 export const UseActionParameters = z.object({
     name: z.string().describe('The reusable action name'),
     description: z.string().describe('What the action should do'),
