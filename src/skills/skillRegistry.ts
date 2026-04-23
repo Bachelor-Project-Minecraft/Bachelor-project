@@ -1,7 +1,7 @@
 import { Skill } from "../types";
 import { Bot } from "mineflayer";
 import { z } from "zod";
-import { AttackSkill, createUseActionSkill, DoNothingSkill, GoToPositionSkill, MineBlockSkill, WhisperSkill } from "./actions";
+import { AttackSkill, createNewActionSkill, DoNothingSkill, GoToPositionSkill, MineBlockSkill, SendMessageSkill } from "./actions";
 import { GeneratedActionService } from "./generatedActionService";
 
 export class SkillRegistry {
@@ -26,12 +26,12 @@ export class SkillRegistry {
             return;
         }
 
-        this.registerBuiltInSkill(WhisperSkill);
+        this.registerBuiltInSkill(SendMessageSkill);
         this.registerBuiltInSkill(DoNothingSkill);
         this.registerBuiltInSkill(AttackSkill);
         this.registerBuiltInSkill(MineBlockSkill);
         this.registerBuiltInSkill(GoToPositionSkill);
-        this.registerBuiltInSkill(createUseActionSkill(actionService));
+        this.registerBuiltInSkill(createNewActionSkill(actionService));
         actionService.loadGenerationSkills();
         this.builtInsInitialized = true;
     }

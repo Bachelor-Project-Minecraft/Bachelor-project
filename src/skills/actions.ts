@@ -5,7 +5,7 @@ import { GeneratedActionService } from "./generatedActionService";
 import { Vec3 } from "vec3";
 import { Movements, goals } from "mineflayer-pathfinder";
 
-export const WhisperSkill: Skill = {
+export const SendMessageSkill: Skill = {
     name: 'send_message',
     description: 'Send a private message to one or more players. Use this only for survival-relevant coordination.',
     parameters: z.object({
@@ -159,7 +159,7 @@ const UseActionToolParameters: ToolSchema = {
     required: ['name', 'description', 'args']
 };
 
-export const createUseActionSkill = (actionService: GeneratedActionService): Skill => ({
+export const createNewActionSkill = (actionService: GeneratedActionService): Skill => ({
     name: 'new_action',
     description: 'Create and execute a new Minecraft action that does not yet exist',
     parameters: UseActionParameters,
