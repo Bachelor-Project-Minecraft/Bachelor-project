@@ -31,6 +31,10 @@ export const SendMessageSkill: Skill = {
             bot.whisper(receiver, message);
         }
 
+        // Show the message in the Minecraft chat as well for better observability of communication inside the game.
+        const recipientList = receivers.join(', ');
+        bot.chat(`[whisper to ${recipientList}] ${message}`);
+
         return `<MESSAGE to ${receivers.join(', ')}>: "${message}"`;
     }
 };
