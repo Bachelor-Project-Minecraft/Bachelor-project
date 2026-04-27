@@ -8,7 +8,7 @@ const chatModel: LlmModelConfig = {
   }
 };
 
-const actionModel: LlmModelConfig = {
+const skillModel: LlmModelConfig = {
   provider: 'openrouter',
   model: 'x-ai/grok-4.1-fast',
   reasoning: {
@@ -31,7 +31,7 @@ export const config = {
   },
   llm: {
     chat: chatModel,
-    action: actionModel,
+    action: skillModel,
     ollama: {
       baseUrl: 'http://127.0.0.1:11434'
     },
