@@ -51,6 +51,7 @@ export class Agent {
 
         this.bot.on('death', () => {
             this.isAlive = false;
+            this.stopActivity();
             this.bot.quit();
         });
 
@@ -63,6 +64,7 @@ export class Agent {
         this.bot.on('kicked', (reason) => console.log('Kicked:', reason));
         this.bot.on('end', () => {
             this.isAlive = false;
+            this.stopActivity();
         });
     }
 
@@ -126,5 +128,16 @@ export class Agent {
     public setFreeze(freeze: boolean): void {
         this.isFrozen = freeze;
         this.bot.physicsEnabled = !freeze;
+    }
+
+    private stopActivity(): void {
+        try {
+            this.bot.pvp?.stop();
+            this.bot.pathfinder?.stop();
+            this.bot.clearControlStates();
+            this.bot.deactivateItem();
+        } catch (error) {
+            console.warn(`Failed to stop activity for ${this.username}:`, error);
+        }
     }
 }

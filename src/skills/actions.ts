@@ -114,22 +114,35 @@ export const BowAttackSkill: Skill = {
         const freezePollMs = 50;
         const arrowNames = new Set(['arrow', 'spectral_arrow', 'tipped_arrow']);
         const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+        const isBotAlive = () => bot.health > 0 && Boolean(bot.entity);
 
         const waitUntilWorldActive = async () => {
             while (!bot.physicsEnabled) {
+                if (!isBotAlive()) {
+                    return false;
+                }
+
                 await sleep(freezePollMs);
             }
+
+            return true;
         };
 
         const waitForActiveMs = async (activeMs: number) => {
             let remaining = activeMs;
 
             while (remaining > 0) {
-                await waitUntilWorldActive();
+                if (!await waitUntilWorldActive()) {
+                    return false;
+                }
 
                 const chunk = Math.min(remaining, freezePollMs);
                 const chunkStart = Date.now();
                 await sleep(chunk);
+
+                if (!isBotAlive()) {
+                    return false;
+                }
 
                 if (!bot.physicsEnabled) {
                     continue;
@@ -138,11 +151,14 @@ export const BowAttackSkill: Skill = {
                 const chunkElapsed = Math.max(0, Date.now() - chunkStart);
                 remaining -= Math.min(chunkElapsed, chunk);
             }
+
+            return true;
         };
 
         const stopUsingBow = async () => {
-            await waitUntilWorldActive();
-            bot.deactivateItem();
+            if (await waitUntilWorldActive()) {
+                bot.deactivateItem();
+            }
         };
 
         const getArrowCount = () => bot.inventory
@@ -183,6 +199,10 @@ export const BowAttackSkill: Skill = {
         let shotsFired = 0;
 
         while (engagementElapsedMs < maxEngagementMs) {
+            if (!isBotAlive()) {
+                return `<DEAD>: Stopped bow attack because I am no longer alive.`;
+            }
+
             const arrowsLeft = getArrowCount();
             if (arrowsLeft <= 0) {
                 await stopUsingBow();
@@ -196,16 +216,28 @@ export const BowAttackSkill: Skill = {
             }
 
             const aimPosition = target.position.offset(0, Math.max(0.6, (target.height ?? 1.8) * 0.75), 0);
-            await waitUntilWorldActive();
+            if (!await waitUntilWorldActive()) {
+                return `<DEAD>: Stopped bow attack because I am no longer alive.`;
+            }
+
             await bot.lookAt(aimPosition, true);
 
-            await waitUntilWorldActive();
+            if (!await waitUntilWorldActive()) {
+                return `<DEAD>: Stopped bow attack because I am no longer alive.`;
+            }
+
             bot.activateItem();
-            await waitForActiveMs(holdDrawMs);
+            if (!await waitForActiveMs(holdDrawMs)) {
+                return `<DEAD>: Stopped bow attack because I am no longer alive.`;
+            }
+
             await stopUsingBow();
             shotsFired += 1;
 
-            await waitForActiveMs(cooldownMs);
+            if (!await waitForActiveMs(cooldownMs)) {
+                return `<DEAD>: Stopped bow attack because I am no longer alive.`;
+            }
+
             engagementElapsedMs += holdDrawMs + cooldownMs;
         }
 
@@ -332,22 +364,35 @@ export const EatBreadUntilFullSkill: Skill = {
         const settleMs = 120;
         const freezePollMs = 50;
         const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+        const isBotAlive = () => bot.health > 0 && Boolean(bot.entity);
 
         const waitUntilWorldActive = async () => {
             while (!bot.physicsEnabled) {
+                if (!isBotAlive()) {
+                    return false;
+                }
+
                 await sleep(freezePollMs);
             }
+
+            return true;
         };
 
         const waitForActiveMs = async (activeMs: number) => {
             let remaining = activeMs;
 
             while (remaining > 0) {
-                await waitUntilWorldActive();
+                if (!await waitUntilWorldActive()) {
+                    return false;
+                }
 
                 const chunk = Math.min(remaining, freezePollMs);
                 const chunkStart = Date.now();
                 await sleep(chunk);
+
+                if (!isBotAlive()) {
+                    return false;
+                }
 
                 if (!bot.physicsEnabled) {
                     continue;
@@ -356,6 +401,8 @@ export const EatBreadUntilFullSkill: Skill = {
                 const chunkElapsed = Math.max(0, Date.now() - chunkStart);
                 remaining -= Math.min(chunkElapsed, chunk);
             }
+
+            return true;
         };
 
         const findBread = () => bot.inventory.items().find((item) => item.name === 'bread');
@@ -371,18 +418,33 @@ export const EatBreadUntilFullSkill: Skill = {
         let breadEaten = 0;
 
         while ((bot.food ?? 0) < maxFood) {
+            if (!isBotAlive()) {
+                return `<DEAD>: Stopped eating because I am no longer alive.`;
+            }
+
             const bread = findBread();
             if (!bread) {
                 return `<OUT OF BREAD>: Ate ${breadEaten} bread. Hunger is ${bot.food ?? 0}/${maxFood}.`;
             }
 
             await bot.equip(bread, 'hand');
-            await waitUntilWorldActive();
+            if (!await waitUntilWorldActive()) {
+                return `<DEAD>: Stopped eating because I am no longer alive.`;
+            }
+
             bot.activateItem();
-            await waitForActiveMs(consumeMs);
-            await waitUntilWorldActive();
+            if (!await waitForActiveMs(consumeMs)) {
+                return `<DEAD>: Stopped eating because I am no longer alive.`;
+            }
+
+            if (!await waitUntilWorldActive()) {
+                return `<DEAD>: Stopped eating because I am no longer alive.`;
+            }
+
             bot.deactivateItem();
-            await waitForActiveMs(settleMs);
+            if (!await waitForActiveMs(settleMs)) {
+                return `<DEAD>: Stopped eating because I am no longer alive.`;
+            }
 
             breadEaten += 1;
         }

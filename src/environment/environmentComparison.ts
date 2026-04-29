@@ -47,7 +47,7 @@ export function compareEnvironmentSnapshots(
 		significantDistanceDelta,
 	)
 
-	if (current.health < previous.health - 4) {
+	if (current.health < previous.health - 8) {
 		const healthLoss = previous.health - current.health
 		steps.push({
 			title:
@@ -79,6 +79,22 @@ export function compareEnvironmentSnapshots(
 			details: inventoryDiff.usedOrLost.map(
 				(item) => `- ${item.delta} ${item.name}`,
 			),
+			shouldTriggerPrompt: false,
+		})
+	}
+
+	const currentPlayerNames = new Set(current.allPlayers.map((player) => player.name))
+	const deadPlayers = previous.allPlayers.filter(
+		(player) => !currentPlayerNames.has(player.name),
+	)
+
+	if (deadPlayers.length > 0) {
+		steps.push({
+			title:
+				deadPlayers.length === 1
+					? "Another player has died:"
+					: "Other players have died:",
+			details: deadPlayers.map((player) => `- ${player.name}`),
 			shouldTriggerPrompt: false,
 		})
 	}

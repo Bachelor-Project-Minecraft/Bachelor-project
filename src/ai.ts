@@ -112,6 +112,10 @@ export class AIController {
             }
 
             for (const toolCall of toolCalls) {
+                if (!this.canAct()) {
+                    break;
+                }
+
                 const result = await this.executeToolCall(toolCall);
                 this.appendMessageToHistory({
                     role: 'tool',
@@ -145,6 +149,10 @@ export class AIController {
     }
 
     private async executeToolCall(toolCall: LlmToolCall): Promise<string> {
+        if (!this.canAct()) {
+            return '<DEAD>: Cannot execute tool because I am no longer alive.';
+        }
+
         const skill = this.registry.getSkill(toolCall.function.name);
         if (!skill) {
             return `<TOOL UNAVAILABLE>: Could not find tool "${toolCall.function.name}".`;
@@ -163,6 +171,10 @@ export class AIController {
             console.error(`Skill execution failed for ${skill.name}:`, error);
             return `<TOOL ERROR>: ${skill.name} failed: ${this.stringifyError(error)}.`;
         }
+    }
+
+    private canAct(): boolean {
+        return this.agent.isAlive && this.agent.bot.health > 0;
     }
 
     private async resolveToolArguments(skill: Skill, rawArgs: unknown): Promise<unknown | null> {
