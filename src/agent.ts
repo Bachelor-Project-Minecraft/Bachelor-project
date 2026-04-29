@@ -77,7 +77,7 @@ export class Agent {
         }, 2000);
     }
 
-    private updateEnvironmentSnapshot(currentSnapshot: EnvironmentSnapshot): EnvironmentChangeStep[] {
+    private detectEnvironmentChanges(currentSnapshot: EnvironmentSnapshot): EnvironmentChangeStep[] {
         const previousSnapshot = this.previousEnvironmentSnapshot;
         this.previousEnvironmentSnapshot = currentSnapshot;
 
@@ -92,7 +92,7 @@ export class Agent {
         return steps
             .map((step) => {
                 const triggerLine = step.shouldTriggerPrompt ? 'Trigger prompt: true' : 'Trigger prompt: false';
-                return `${step.title}\n${step.details.join('\n')}\n${triggerLine}`;
+                return `${step.title}\n${step.details.join('\n')}`;
             })
             .join('\n\n');
     }
@@ -101,11 +101,22 @@ export class Agent {
         return steps.some((step) => step.shouldTriggerPrompt);
     }
 
+    public consumePendingEnvironmentChanges(): string | null {
+        const currentSnapshot = this.observeEnvironment();
+        const environmentChanges = this.detectEnvironmentChanges(currentSnapshot);
+
+        if (environmentChanges.length === 0) {
+            return null;
+        }
+
+        return this.formatEnvironmentChanges(environmentChanges);
+    }
+
     private checkForDanger() {
         if (!this.bot.entity) return;
 
         const currentSnapshot = this.observeEnvironment();
-        const environmentChanges = this.updateEnvironmentSnapshot(currentSnapshot);
+        const environmentChanges = this.detectEnvironmentChanges(currentSnapshot);
         if (environmentChanges.length === 0) return;
         if (!this.hasTriggeringChanges(environmentChanges)) return;
 

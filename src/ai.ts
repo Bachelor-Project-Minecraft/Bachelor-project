@@ -23,6 +23,7 @@ export class AIController {
     private memory: string = ''; // Store summarized memory
     private environmentSnapshot: string = ''; // Store latest environment snapshot
     private isProcessing: boolean = false; // Prevent overlapping thoughts
+    private deferredHistoryMessages: LlmMessage[] = [];
 
     constructor(agent: Agent, agentName: string) {
         this.agent = agent;
@@ -52,26 +53,49 @@ export class AIController {
 
     public async processEvent(eventRespondent: string, eventDescription: string) {
         if (!this.agent.isAlive || this.agent.bot.health <= 0) return;
-        if (this.isProcessing) return;
-        this.isProcessing = true;
 
-        console.log(`${eventRespondent} <Event>: ${eventDescription}`);
-        this.appendMessageToHistory({
+        const message: LlmMessage = {
             role: 'user',
             content: `${eventRespondent} <Event>: ${eventDescription}`
-        });
+        };
+        console.log(`${eventRespondent} <Event>: ${eventDescription}`);
+
+        if (this.isProcessing) {
+            this.deferMessageToHistory(message);
+            console.log(`${eventRespondent} <Event>: deferred but not acted on because ${this.agent.bot.username} is already processing.`);
+            return;
+        }
+
+        this.appendMessageToHistory(message);
+        this.isProcessing = true;
 
         await this.generateResponse();
     }
 
     public async processMessage(sender: string, message: string) {
         if (!this.agent.isAlive || this.agent.bot.health <= 0) return;
-        if (this.isProcessing) return;
-        this.isProcessing = true;
 
         const role = 'user';
         const content = `${sender} <MESSAGE>: ${message}`;
-        this.appendMessageToHistory({ role, content });
+        const historyMessage: LlmMessage = { role, content };
+        console.log(content);
+
+        if (this.isProcessing) {
+            this.deferMessageToHistory(historyMessage);
+            console.log(`${sender} <MESSAGE>: deferred but not acted on because ${this.agent.bot.username} is already processing.`);
+            return;
+        }
+
+        this.appendMessageToHistory(historyMessage);
+        this.isProcessing = true;
+
+        const pendingEnvironmentChanges = this.agent.consumePendingEnvironmentChanges();
+        if (pendingEnvironmentChanges) {
+            this.appendMessageToHistory({
+                role: 'user',
+                content: `${this.agent.bot.username} <Event>: ${pendingEnvironmentChanges}`
+            });
+        }
 
         await this.generateResponse();
     }
@@ -89,10 +113,6 @@ export class AIController {
 
             for (const toolCall of toolCalls) {
                 const result = await this.executeToolCall(toolCall);
-                if (!result) {
-                    continue;
-                }
-
                 this.appendMessageToHistory({
                     role: 'tool',
                     content: `Me ${result}`,
@@ -103,6 +123,7 @@ export class AIController {
         } catch (error) {
             console.error('AI Error:', error);
         } finally {
+            this.flushDeferredHistoryMessages();
             this.isProcessing = false;
         }
     }
@@ -123,15 +144,15 @@ export class AIController {
         });
     }
 
-    private async executeToolCall(toolCall: LlmToolCall): Promise<string | null> {
+    private async executeToolCall(toolCall: LlmToolCall): Promise<string> {
         const skill = this.registry.getSkill(toolCall.function.name);
         if (!skill) {
-            return null;
+            return `<TOOL UNAVAILABLE>: Could not find tool "${toolCall.function.name}".`;
         }
 
         const resolvedArgs = await this.resolveToolArguments(skill, toolCall.function.arguments);
         if (!resolvedArgs) {
-            return null;
+            return `<INVALID TOOL ARGUMENTS>: Could not resolve valid arguments for ${toolCall.function.name}.`;
         }
 
         console.log(`Executing skill: ${skill.name}`);
@@ -140,7 +161,7 @@ export class AIController {
             return await skill.execute(this.agent.bot, resolvedArgs);
         } catch (error) {
             console.error(`Skill execution failed for ${skill.name}:`, error);
-            return null;
+            return `<TOOL ERROR>: ${skill.name} failed: ${this.stringifyError(error)}.`;
         }
     }
 
@@ -346,9 +367,36 @@ export class AIController {
         }
     }
 
+    private stringifySummaryValue(value: unknown): string {
+        try {
+            return JSON.stringify(value) ?? String(value);
+        } catch {
+            return String(value);
+        }
+    }
+
+    private stringifyError(error: unknown): string {
+        if (error instanceof Error) {
+            return error.message;
+        }
+
+        return this.stringifySummaryValue(error);
+    }
+
     private appendMessageToHistory(message: LlmMessage): void {
         this.history.push(message);
         this.log.appendMessage(message);
+    }
+
+    private deferMessageToHistory(message: LlmMessage): void {
+        this.deferredHistoryMessages.push(message);
+    }
+
+    private flushDeferredHistoryMessages(): void {
+        const messages = this.deferredHistoryMessages.splice(0);
+        for (const message of messages) {
+            this.appendMessageToHistory(message);
+        }
     }
 
     private recordAssistantResponse(response: LlmChatResponse) {
@@ -439,12 +487,12 @@ export class AIController {
 
     private async summarizeHistory() {
         const summarizeChunkSize = Math.max(1, config.ai.summarizeChunkSize);
+        const chunk = this.getSummarizableHistoryChunk(summarizeChunkSize);
 
-        const chunk = this.history.slice(1, 1 + summarizeChunkSize);
         if (chunk.length === 0) return;
 
         const toSummarize = chunk
-            .map((message) => `[${message.role}] ${message.content}`)
+            .map((message) => this.formatMessageForSummary(message))
             .join('\n');
 
         try {
@@ -462,6 +510,81 @@ export class AIController {
         } catch (error) {
             console.error('History summarization error:', error);
         }
+    }
+
+    private getSummarizableHistoryChunk(maxMessages: number): LlmMessage[] {
+        let index = 1;
+        let selectedEnd = 1;
+
+        while (index < this.history.length) {
+            if (this.history[index].role !== 'user') {
+                break;
+            }
+
+            while (index < this.history.length && this.history[index].role === 'user') {
+                index += 1;
+            }
+
+            const assistantMessage = this.history[index];
+            if (!assistantMessage || assistantMessage.role !== 'assistant') {
+                break;
+            }
+
+            index += 1;
+
+            const toolCallIds = assistantMessage.toolCalls?.map((toolCall) => toolCall.id) ?? [];
+            let hasCompleteToolResults = true;
+            for (const toolCallId of toolCallIds) {
+                const toolMessage = this.history[index];
+                if (!toolMessage || toolMessage.role !== 'tool' || toolMessage.toolCallId !== toolCallId) {
+                    hasCompleteToolResults = false;
+                    break;
+                }
+
+                index += 1;
+            }
+
+            if (!hasCompleteToolResults) {
+                break;
+            }
+
+            selectedEnd = index;
+
+            if (selectedEnd - 1 >= maxMessages) {
+                break;
+            }
+        }
+
+        return this.history.slice(1, selectedEnd);
+    }
+
+    private formatMessageForSummary(message: LlmMessage): string {
+        if (message.role === 'assistant') {
+            const parts: string[] = [];
+            const content = message.content.trim();
+
+            if (content) {
+                parts.push(`[assistant] ${content}`);
+            }
+
+            if (message.toolCalls && message.toolCalls.length > 0) {
+                const toolCalls = message.toolCalls
+                    .map((toolCall) =>
+                        `${toolCall.function.name}(${this.stringifySummaryValue(toolCall.function.arguments)})`
+                    )
+                    .join(', ');
+                parts.push(`[assistant tool_calls] ${toolCalls}`);
+            }
+
+            return parts.length > 0 ? parts.join('\n') : '[assistant]';
+        }
+
+        if (message.role === 'tool') {
+            const toolLabel = message.toolName ?? message.toolCallId ?? 'unknown_tool';
+            return `[tool ${toolLabel}] ${message.content}`;
+        }
+
+        return `[${message.role}] ${message.content}`;
     }
 
     private shouldSummarizeHistory() {
