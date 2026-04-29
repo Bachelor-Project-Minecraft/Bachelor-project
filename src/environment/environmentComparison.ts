@@ -149,7 +149,7 @@ function addThreatSteps(
 			details: removedThreats.map(
 				(threat) => `- ${labels.formatThreatName(threat)}`,
 			),
-			shouldTriggerPrompt: false,
+			shouldTriggerPrompt: true,
 		})
 	}
 

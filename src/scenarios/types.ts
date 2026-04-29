@@ -9,3 +9,9 @@ export type EntitySpawn = {
     position: Position;
     nbt?: string;
 };
+
+export type AgentItem = {
+    item: string;
+    count?: number;
+    nbt?: string;
+}

@@ -1,6 +1,6 @@
 import type { Agent } from '../agent';
 import type { MinecraftServer } from '../minecraftServer';
-import type { EntitySpawn, Position } from './types';
+import type { EntitySpawn, Position, AgentItem } from './types';
 
 const defaultAgentSpawnPosition: Position = { x: 0, y: 0, z: 0 };
 
@@ -12,6 +12,7 @@ export class Scenario {
 
     public async start(server: MinecraftServer, agents: Agent[]): Promise<void> {
         const configuredSpawnPositions = this.getAgentSpawnPositions();
+        const configuredInventories = this.getAgentInventories();
         const agentsToPlace = agents;
 
         while (agentsToPlace.some((agent) => !agent.isAlive)) {
@@ -24,6 +25,16 @@ export class Scenario {
             server.sendCommand(
                 `tp ${agent.username} ${position.x} ${position.y} ${position.z}`
             );
+
+            const inventory = configuredInventories[agent.username];
+            if (inventory) {
+                inventory.forEach(({ item, count, nbt }) => {
+                    const amount = count ?? 1;
+                    const nbtData = nbt ? nbt : '';
+                    // Syntax: /give <player> <item>[nbt] <count>
+                    server.sendCommand(`give ${agent.username} ${item}${nbtData} ${amount}`);
+                });
+            }
         });
 
         this.getEntitySpawns().forEach(({ type, position, nbt }) => {
@@ -39,11 +50,34 @@ export class Scenario {
         return {};
     }
 
+    protected getAgentInventories(): Record<string, AgentItem[]> {
+        return {};
+    }
+
     protected getEntitySpawns(): EntitySpawn[] {
         return [];
     }
 
     protected runCommandAtAgent(agent: Agent, command: string): void {
         agent.server.sendCommand(`execute at ${agent.bot.username} run ${command}`);
+    }
+
+    protected runOnActiveInterval(
+        server: MinecraftServer,
+        intervalMs: number,
+        callback: () => void,
+        pollMs: number = 100
+    ): NodeJS.Timeout {
+        let lastTriggeredActiveMs = Date.now() - server.timefrozen;
+
+        return setInterval(() => {
+            const activeNowMs = Date.now() - server.timefrozen;
+            if (activeNowMs - lastTriggeredActiveMs < intervalMs) {
+                return;
+            }
+
+            lastTriggeredActiveMs = activeNowMs;
+            callback();
+        }, pollMs);
     }
 }

@@ -49,19 +49,26 @@ export const DoNothingSkill: Skill = {
 };
 
 // temp
-export const AttackSkill: Skill = {
-    name: 'attack_nearest',
-    description: 'Attack the nearest hostile entity within range.',
-    parameters: z.object({}),
-    execute: async (bot) => {
+export const MeleeAttackSkill: Skill = {
+    name: 'melee_attack',
+    description: 'Attack a specific hostile entity by id within range.',
+    parameters: z.object({
+        enemyId: z.union([
+            z.number().int(),
+            z.string().min(1)
+        ]).describe('The target hostile entity id from the environment snapshot')
+    }),
+    execute: async (bot, args) => {
         const pvp = bot.pvp;
         const maxTargetDistance = 16;
+        const targetEnemyId = String(args.enemyId);
 
         const isValidHostileTarget = (entity: typeof pvp.target | null | undefined): entity is NonNullable<typeof pvp.target> => {
             return Boolean(
                 entity
                 && entity.isValid
                 && entity.type === 'hostile'
+                && String(entity.id) === targetEnemyId
                 && entity.position.distanceTo(bot.entity.position) <= maxTargetDistance
             );
         };
@@ -72,11 +79,13 @@ export const AttackSkill: Skill = {
             : bot.nearestEntity((entity) => (
                 entity.type === 'hostile'
                 && entity.isValid
+                && String(entity.id) === targetEnemyId
                 && entity.position.distanceTo(bot.entity.position) <= maxTargetDistance
             ));
 
         if (!enemy) {
-            return "<NO ENEMIES>: No enemies nearby to attack.";
+            console.log("agent hallusinated and tried to attack enemy that didn't exist");
+            return `<NO TARGET>: Could not find hostile entity with id ${targetEnemyId} in range.`;
         }
 
         if (currentTarget && currentTarget.id !== enemy.id) {
@@ -88,53 +97,297 @@ export const AttackSkill: Skill = {
     }
 };
 
-export const MineBlockSkill: Skill = {
-    name: 'mine_block_at',
-    description: 'Move to a block and dig it.',
-    parameters: z.object({ 
-        position: z.object({ 
-            x: z.number().describe('The x coordinate of the target block'), 
-            y: z.number().describe('The y coordinate of the target block'), 
-            z: z.number().describe('The z coordinate of the target block') 
-        }).describe('The x, y and z coordinates for the block to dig') 
+export const BowAttackSkill: Skill = {
+    name: 'bow_attack',
+    description: 'Attack a specific hostile entity by id using a bow until it is dead or arrows run out.',
+    parameters: z.object({
+        enemyId: z.union([
+            z.number().int(),
+            z.string().min(1)
+        ]).describe('The target hostile entity id from the environment snapshot')
     }),
     execute: async (bot, args) => {
-        const blockPosition = new Vec3(Math.floor(args.position.x), Math.floor(args.position.y), Math.floor(args.position.z));
-        const block = bot.blockAt(blockPosition);
-        
-        if (!block) {
-            return "<NO BLOCK>: Could not find the target block.";
+        const targetEnemyId = String(args.enemyId);
+        const maxEngagementMs = 45000;
+        const holdDrawMs = 900;
+        const cooldownMs = 350;
+        const freezePollMs = 50;
+        const arrowNames = new Set(['arrow', 'spectral_arrow', 'tipped_arrow']);
+        const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+        const waitUntilWorldActive = async () => {
+            while (!bot.physicsEnabled) {
+                await sleep(freezePollMs);
+            }
+        };
+
+        const waitForActiveMs = async (activeMs: number) => {
+            let remaining = activeMs;
+
+            while (remaining > 0) {
+                await waitUntilWorldActive();
+
+                const chunk = Math.min(remaining, freezePollMs);
+                const chunkStart = Date.now();
+                await sleep(chunk);
+
+                if (!bot.physicsEnabled) {
+                    continue;
+                }
+
+                const chunkElapsed = Math.max(0, Date.now() - chunkStart);
+                remaining -= Math.min(chunkElapsed, chunk);
+            }
+        };
+
+        const stopUsingBow = async () => {
+            await waitUntilWorldActive();
+            bot.deactivateItem();
+        };
+
+        const getArrowCount = () => bot.inventory
+            .items()
+            .filter((item) => arrowNames.has(item.name))
+            .reduce((count, item) => count + item.count, 0);
+
+        const findTarget = () => Object
+            .values(bot.entities)
+            .find((entity) => (
+                entity.type === 'hostile'
+                && entity.isValid
+                && String(entity.id) === targetEnemyId
+            ));
+
+        const bow = bot.inventory.items().find((item) => item.name === 'bow');
+        if (!bow) {
+            console.log("agent hallusinated and tried to attack with bow that didn't exist");
+            return '<NO BOW>: Cannot use bow attack because no bow is in inventory.';
         }
-        
-        const movements = new Movements(bot);
-        bot.pathfinder.setMovements(movements);
-        await bot.pathfinder.goto(new goals.GoalNear(blockPosition.x, blockPosition.y, blockPosition.z, 1));
-        const bestTool = bot.pathfinder.bestHarvestTool(block);
-        
-        if (bestTool) {
-            await bot.equip(bestTool, 'hand');
+
+        const initialArrows = getArrowCount();
+        if (initialArrows <= 0) {
+            console.log("agent hallusinated and tried to attack with no arrows");
+            return '<NO ARROWS>: Cannot use bow attack because no arrows are available.';
         }
-        
-        await bot.dig(block);
-        
-        return "<MINED>: Broke the target block.";
+
+        let target = findTarget();
+        if (!target) {
+            console.log("agent hallusinated and tried to attack enemy that didn't exist");
+            return `<NO TARGET>: Could not find hostile entity with id ${targetEnemyId}.`;
+        }
+
+        bot.pvp.stop();
+        await bot.equip(bow, 'hand');
+
+        let engagementElapsedMs = 0;
+        let shotsFired = 0;
+
+        while (engagementElapsedMs < maxEngagementMs) {
+            const arrowsLeft = getArrowCount();
+            if (arrowsLeft <= 0) {
+                await stopUsingBow();
+                return `<OUT OF ARROWS>: Fired ${shotsFired} shot(s). Stopped attacking ${target.name ?? 'target'} because arrows ran out.`;
+            }
+
+            target = findTarget();
+            if (!target) {
+                await stopUsingBow();
+                return `<TARGET DOWN>: Stopped bow attack because target id ${targetEnemyId} is no longer alive or in range.`;
+            }
+
+            const aimPosition = target.position.offset(0, Math.max(0.6, (target.height ?? 1.8) * 0.75), 0);
+            await waitUntilWorldActive();
+            await bot.lookAt(aimPosition, true);
+
+            await waitUntilWorldActive();
+            bot.activateItem();
+            await waitForActiveMs(holdDrawMs);
+            await stopUsingBow();
+            shotsFired += 1;
+
+            await waitForActiveMs(cooldownMs);
+            engagementElapsedMs += holdDrawMs + cooldownMs;
+        }
+
+        await stopUsingBow();
+        return `<ATTACK TIMEOUT>: Fired ${shotsFired} shot(s) at target id ${targetEnemyId} but engagement timed out.`;
     }
 };
 
-export const GoToPositionSkill: Skill = {
-    name: 'go_to_position',
-    description: 'Move to the given coordinates.',
+export const MoveToCoordinateSkill: Skill = {
+    name: 'move_to_coordinate',
+    description: 'Move to a specific world coordinate using pathfinder.',
     parameters: z.object({
-        x: z.number().describe('The target x coordinate'),
-        y: z.number().describe('The target y coordinate'),
-        z: z.number().describe('The target z coordinate')
+        position: z.object({
+            x: z.number().describe('Target x coordinate'),
+            y: z.number().describe('Target y coordinate'),
+            z: z.number().describe('Target z coordinate')
+        }).describe('The destination coordinates to move to'),
+        radius: z.number().min(0).max(4).optional().describe('How close is close enough to the destination (default: 1)')
     }),
     execute: async (bot, args) => {
-        const position = new Vec3(Math.floor(args.x), Math.floor(args.y), Math.floor(args.z));
+        const targetPosition = new Vec3(
+            Math.floor(args.position.x),
+            Math.floor(args.position.y),
+            Math.floor(args.position.z)
+        );
+        const radius = typeof args.radius === 'number' ? Math.max(0, Math.min(4, args.radius)) : 1;
+
         const movements = new Movements(bot);
         bot.pathfinder.setMovements(movements);
-        await bot.pathfinder.goto(new goals.GoalNear(position.x, position.y, position.z, 1));
-        return `<MOVED>: Reached (${position.x}, ${position.y}, ${position.z}).`;
+        await bot.pathfinder.goto(new goals.GoalNear(targetPosition.x, targetPosition.y, targetPosition.z, radius));
+
+        return `<MOVED>: Moved toward (${targetPosition.x}, ${targetPosition.y}, ${targetPosition.z}) with radius ${radius}.`;
+    }
+};
+
+export const EquipItemInHandSkill: Skill = {
+    name: 'equip_item_in_hand',
+    description: 'Equip an inventory item in the hand by item name. This is executed instantaneous, and should be paired with other skills.',
+    parameters: z.object({
+        itemName: z.string().min(1).describe('The inventory item to hold, for example iron_sword or st')
+    }),
+    execute: async (bot, args) => {
+        const normalizeItemName = (value: string) => value
+            .trim()
+            .toLowerCase()
+            .replace(/^minecraft:/, '')
+            .replace(/\s+/g, '_');
+
+        const requestedName = normalizeItemName(args.itemName);
+        const inventoryItems = bot.inventory.items();
+
+        const selectedItem = inventoryItems.find((item) => {
+            const byName = normalizeItemName(item.name) === requestedName;
+            const byDisplayName = typeof item.displayName === 'string'
+                && normalizeItemName(item.displayName) === requestedName;
+            return byName || byDisplayName;
+        });
+
+        if (!selectedItem) {
+            return `<NO ITEM>: Could not find ${args.itemName} in inventory.`;
+        }
+
+        await bot.equip(selectedItem, 'hand');
+        return `<EQUIPPED>: Now holding ${selectedItem.displayName ?? selectedItem.name}.`;
+    }
+};
+
+export const EquipGearSkill: Skill = {
+    name: 'equip_gear',
+    description: 'Equip wearable gear (helmet, chestplate, leggings, boots) from inventory. This is executed instantaneous, and should be paired with other skills.',
+    parameters: z.object({
+        itemName: z.string().min(1).describe('The gear item to wear, for example leather_chestplate')
+    }),
+    execute: async (bot, args) => {
+        const normalizeItemName = (value: string) => value
+            .trim()
+            .toLowerCase()
+            .replace(/^minecraft:/, '')
+            .replace(/\s+/g, '_');
+
+        const requestedName = normalizeItemName(args.itemName);
+        const inventoryItems = bot.inventory.items();
+
+        const selectedItem = inventoryItems.find((item) => {
+            const byName = normalizeItemName(item.name) === requestedName;
+            const byDisplayName = typeof item.displayName === 'string'
+                && normalizeItemName(item.displayName) === requestedName;
+            return byName || byDisplayName;
+        });
+
+        if (!selectedItem) {
+            return `<NO ITEM>: Could not find ${args.itemName} in inventory.`;
+        }
+
+        const normalizedSelectedName = normalizeItemName(selectedItem.name);
+        let destination: 'head' | 'torso' | 'legs' | 'feet' | null = null;
+
+        if (normalizedSelectedName.includes('helmet')) {
+            destination = 'head';
+        } else if (normalizedSelectedName.includes('chestplate')) {
+            destination = 'torso';
+        } else if (normalizedSelectedName.includes('leggings')) {
+            destination = 'legs';
+        } else if (normalizedSelectedName.includes('boots')) {
+            destination = 'feet';
+        }
+
+        if (!destination) {
+            return `<NOT GEAR>: ${selectedItem.displayName ?? selectedItem.name} is not recognized as wearable gear.`;
+        }
+
+        await bot.equip(selectedItem, destination);
+        return `<EQUIPPED GEAR>: Equipped ${selectedItem.displayName ?? selectedItem.name} to ${destination}.`;
+    }
+};
+
+export const EatBreadUntilFullSkill: Skill = {
+    name: 'eat_bread_until_full',
+    description: 'Eat bread from inventory until hunger is full or bread runs out.',
+    parameters: z.object({}),
+    execute: async (bot) => {
+        const maxFood = 20;
+        const consumeMs = 1700;
+        const settleMs = 120;
+        const freezePollMs = 50;
+        const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+        const waitUntilWorldActive = async () => {
+            while (!bot.physicsEnabled) {
+                await sleep(freezePollMs);
+            }
+        };
+
+        const waitForActiveMs = async (activeMs: number) => {
+            let remaining = activeMs;
+
+            while (remaining > 0) {
+                await waitUntilWorldActive();
+
+                const chunk = Math.min(remaining, freezePollMs);
+                const chunkStart = Date.now();
+                await sleep(chunk);
+
+                if (!bot.physicsEnabled) {
+                    continue;
+                }
+
+                const chunkElapsed = Math.max(0, Date.now() - chunkStart);
+                remaining -= Math.min(chunkElapsed, chunk);
+            }
+        };
+
+        const findBread = () => bot.inventory.items().find((item) => item.name === 'bread');
+
+        if ((bot.food ?? 0) >= maxFood) {
+            return `<ALREADY FULL>: Hunger is already full (${bot.food ?? 0}/${maxFood}).`;
+        }
+
+        if (!findBread()) {
+            return '<NO BREAD>: Cannot eat because no bread is in inventory.';
+        }
+
+        let breadEaten = 0;
+
+        while ((bot.food ?? 0) < maxFood) {
+            const bread = findBread();
+            if (!bread) {
+                return `<OUT OF BREAD>: Ate ${breadEaten} bread. Hunger is ${bot.food ?? 0}/${maxFood}.`;
+            }
+
+            await bot.equip(bread, 'hand');
+            await waitUntilWorldActive();
+            bot.activateItem();
+            await waitForActiveMs(consumeMs);
+            await waitUntilWorldActive();
+            bot.deactivateItem();
+            await waitForActiveMs(settleMs);
+
+            breadEaten += 1;
+        }
+
+        return `<FED>: Ate ${breadEaten} bread and restored hunger to ${bot.food ?? 0}/${maxFood}.`;
     }
 };
 

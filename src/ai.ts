@@ -26,7 +26,11 @@ export class AIController {
 
     constructor(agent: Agent, agentName: string) {
         this.agent = agent;
-        this.log = new AgentLogStore(agentName, () => this.agent.isAlive);
+        this.log = new AgentLogStore(
+            agentName,
+            () => this.agent.isAlive,
+            () => this.agent.server.timefrozen
+        );
         this.llm = new LLMClient(this.log);
         this.registry = SkillRegistry.getInstance();
         this.registry.initializeBuiltIns(
@@ -111,7 +115,7 @@ export class AIController {
                 await this.summarizeHistory();
             }
 
-            console.log("Starting AI response generation...");
+            console.log(this.agent.bot.username + " starting AI response generation...");
             const response = await this.requestChat(this.history);
             console.log("Finished AI response generation.");
 
@@ -362,17 +366,75 @@ export class AIController {
 
     private async requestChat(messages: LlmMessage[]) {
         const tools = this.registry.getTools() as LlmToolDefinition[];
-        console.log("---------------------------------------------------------------")
-        console.log("Available tools for this request:");
-        for (const tool of tools) {
-            console.log(`- ${tool.function.name}: ${tool.function.description}`);
-        }
-        console.log("---------------------------------------------------------------")
+        //console.log("---------------------------------------------------------------")
+        //console.log("Available tools for this request:");
+        //for (const tool of tools) {
+        //    console.log(`- ${tool.function.name}: ${tool.function.description}`);
+        //}
+        //console.log("---------------------------------------------------------------")
 
-        return this.llm.chat({
-            messages,
-            tools
-        });
+        return this.retryChatOnTimeout(() =>
+            this.llm.chat({
+                messages,
+                tools
+            })
+        );
+    }
+
+    private async retryChatOnTimeout(operation: () => Promise<LlmChatResponse>): Promise<LlmChatResponse> {
+        const retryCount = Math.max(0, config.ai.llmTimeoutRetries ?? 0);
+
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return await operation();
+            } catch (error) {
+                const hasRemainingRetries = attempt < retryCount;
+                if (!this.isTimeoutError(error) || !hasRemainingRetries) {
+                    throw error;
+                }
+
+                const currentAttempt = attempt + 1;
+                const totalAttempts = retryCount + 1;
+                console.warn(
+                    `LLM chat request timed out (attempt ${currentAttempt}/${totalAttempts}). Retrying same prompt...`
+                );
+            }
+        }
+    }
+
+    private isTimeoutError(error: unknown): boolean {
+        if (!error || typeof error !== 'object') {
+            return false;
+        }
+
+        const candidate = error as {
+            code?: string;
+            message?: string;
+            status?: number;
+            cause?: unknown;
+            error?: unknown;
+        };
+
+        if (candidate.status === 408 || candidate.status === 504) {
+            return true;
+        }
+
+        const code = (candidate.code ?? '').toLowerCase();
+        if (code.includes('timedout') || code.includes('timeout') || code.includes('etimedout')) {
+            return true;
+        }
+
+        const message = (candidate.message ?? '').toLowerCase();
+        if (
+            message.includes('timeout') ||
+            message.includes('timed out') ||
+            message.includes('deadline exceeded') ||
+            message.includes('gateway timeout')
+        ) {
+            return true;
+        }
+
+        return this.isTimeoutError(candidate.cause) || this.isTimeoutError(candidate.error);
     }
 
     private async summarizeHistory() {

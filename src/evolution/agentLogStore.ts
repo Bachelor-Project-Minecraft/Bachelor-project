@@ -20,14 +20,22 @@ export class AgentLogStore {
     private static hooksRegistered = false;
 
     private readonly startedAtMs: number;
+    private readonly startedFrozenMs: number;
     private readonly conciseFilePath: string;
     private readonly verboseFilePath: string;
     private readonly isAgentAlive: () => boolean;
+    private readonly getFrozenMs: () => number;
     private readonly conciseRecord: AgentLogRecord;
     private readonly verboseRecord: AgentVerboseLogRecord;
 
-    constructor(agentName: string, isAgentAlive: () => boolean) {
+    constructor(
+        agentName: string,
+        isAgentAlive: () => boolean,
+        getFrozenMs: () => number = () => 0
+    ) {
         this.startedAtMs = Date.now();
+        this.getFrozenMs = getFrozenMs;
+        this.startedFrozenMs = this.getFrozenMs();
         this.isAgentAlive = isAgentAlive;
         this.conciseFilePath = path.join(AgentLogStore.getLogsDirectory(), `${agentName}.json`);
         this.verboseFilePath = path.join(AgentLogStore.getVerboseLogsDirectory(), `${agentName}.json`);
@@ -121,8 +129,11 @@ export class AgentLogStore {
     }
 
     private updateLifecycle(record: AgentLogRecord, now: number): void {
+        const elapsedMs = now - this.startedAtMs;
+        const frozenSinceStartMs = Math.max(0, this.getFrozenMs() - this.startedFrozenMs);
+
         record.lastUpdatedAt = new Date(now).toISOString();
-        record.survivedMs = now - this.startedAtMs;
+        record.survivedMs = Math.max(0, elapsedMs - frozenSinceStartMs);
     }
 
     private cloneForLog<T>(value: T): T {

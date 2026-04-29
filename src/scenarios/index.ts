@@ -2,6 +2,9 @@ import { readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { getRuntimePath } from '../utils/util';
 import { Scenario } from './scenario';
 import { TntRainScenario } from './variants/tntRainScenario';
+import { HardScenario } from './variants/hardScenario';
+import { easyScenario } from './variants/easyScenario';
+import { mediumScenario } from './variants/mediumScenario';
 import { ZombieOnSpawnScenario } from './variants/zombieOnSpawnScenario';
 import { ZombieRespawnScenario } from './variants/zombieRespawnScenario';
 
@@ -9,6 +12,9 @@ export { Scenario } from './scenario';
 
 export const availableScenarios: Scenario[] = [
     new Scenario(),
+    new easyScenario(),
+    new mediumScenario(),
+    new HardScenario(),
     new TntRainScenario(),
     new ZombieOnSpawnScenario(),
     new ZombieRespawnScenario(),

@@ -13,7 +13,7 @@ export class ZombieRespawnScenario extends Scenario {
     public async start(server: MinecraftServer, agents: Agent[]): Promise<void> {
         await super.start(server, agents);
 
-        setInterval(() => {
+        this.runOnActiveInterval(server, 2000, () => {
             const aliveAgents = agents.filter((agent) => agent.isAlive);
             if (aliveAgents.length === 0) return;
 
@@ -32,7 +32,7 @@ export class ZombieRespawnScenario extends Scenario {
             });
 
             aliveAgents[0].server.sendCommand(`kill @e[type=marker,tag=${respawnMarkerTag}]`);
-        }, 2000);
+        });
     }
 
     public onAgentSpawn(agent: Agent): void {

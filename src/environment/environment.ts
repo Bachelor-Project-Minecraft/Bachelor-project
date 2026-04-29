@@ -283,7 +283,7 @@ export class Environment {
 			)
 			const block = this.bot.blockAt(blockPosition)
 
-			if (!block || block.name === "air") {
+			if (!block || block.name === "air" || block.name === "bedrock") {
 				return []
 			}
 
