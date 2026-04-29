@@ -25,10 +25,14 @@ export class LLMClient {
     constructor(private readonly logStore?: AgentLogStore) {
         const usesOllama =
             config.llm.chat.provider === "ollama" ||
-            config.llm.action.provider === "ollama";
+            config.llm.action.provider === "ollama" ||
+            config.llm.culture.provider === "ollama" ||
+            config.llm.summary.provider === "ollama";
         const usesOpenRouter =
             config.llm.chat.provider === "openrouter" ||
-            config.llm.action.provider === "openrouter";
+            config.llm.action.provider === "openrouter" ||
+            config.llm.culture.provider === "openrouter" ||
+            config.llm.summary.provider === "openrouter";
 
         if (usesOllama) {
             this.ollama = new Ollama({ host: config.llm.ollama.baseUrl });
@@ -40,7 +44,7 @@ export class LLMClient {
     }
 
     public async chat(request: LlmChatRequest): Promise<LlmChatResponse> {
-        const modelConfig = this.getModelConfig(request.useActionModel);
+        const modelConfig = this.getModelConfig(request);
         const reasoning = request.reasoning ?? modelConfig.reasoning;
         let normalizedResponse: LlmChatResponse;
 
@@ -54,6 +58,7 @@ export class LLMClient {
                 messages: this.toOllamaMessages(request.messages) as any,
                 tools: request.tools as any,
                 format: request.jsonSchema,
+                keep_alive: config.llm.ollama.keepAlive,
                 think: this.toOllamaThink(reasoning)
             });
 
@@ -104,7 +109,7 @@ export class LLMClient {
     }
 
     public async generate(request: LlmGenerateRequest): Promise<LlmGenerateResponse> {
-        const modelConfig = this.getModelConfig(request.useActionModel);
+        const modelConfig = this.getModelConfig(request);
         const reasoning = request.reasoning ?? modelConfig.reasoning;
         let normalizedResponse: LlmGenerateResponse;
 
@@ -117,6 +122,7 @@ export class LLMClient {
                 model: modelConfig.model,
                 prompt: request.prompt,
                 format: request.jsonSchema,
+                keep_alive: config.llm.ollama.keepAlive,
                 think: this.toOllamaThink(reasoning)
             });
 
@@ -163,8 +169,16 @@ export class LLMClient {
         return normalizedResponse;
     }
 
-    private getModelConfig(useActionModel?: boolean): LlmModelConfig {
-        return useActionModel ? config.llm.action : config.llm.chat;
+    private getModelConfig(request: { useActionModel?: boolean; useCultureModel?: boolean; useSummaryModel?: boolean }): LlmModelConfig {
+        if (request.useCultureModel) {
+            return config.llm.culture;
+        }
+
+        if (request.useSummaryModel) {
+            return config.llm.summary;
+        }
+
+        return request.useActionModel ? config.llm.action : config.llm.chat;
     }
 
     private ensureOpenRouterApiKey(): void {

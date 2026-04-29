@@ -431,7 +431,10 @@ export class AIController {
 
     private async retryChatOnTimeout(operation: () => Promise<LlmChatResponse>): Promise<LlmChatResponse> {
         const retryCount = Math.max(0, config.ai.llmTimeoutRetries ?? 0);
+        return this.retryOnTimeout(operation, retryCount, 'LLM chat request');
+    }
 
+    private async retryOnTimeout<T>(operation: () => Promise<T>, retryCount: number, label: string): Promise<T> {
         for (let attempt = 0; ; attempt++) {
             try {
                 return await operation();
@@ -444,7 +447,7 @@ export class AIController {
                 const currentAttempt = attempt + 1;
                 const totalAttempts = retryCount + 1;
                 console.warn(
-                    `LLM chat request timed out (attempt ${currentAttempt}/${totalAttempts}). Retrying same prompt...`
+                    `${label} timed out (attempt ${currentAttempt}/${totalAttempts}). Retrying same prompt...`
                 );
             }
         }
@@ -496,9 +499,14 @@ export class AIController {
             .join('\n');
 
         try {
-            const summary = await this.llm.generate({
-                prompt: getSummarizeHistoryPrompt(this.agent.bot.username, this.memory, toSummarize)
-            });
+            const summary = await this.retryOnTimeout(
+                () => this.llm.generate({
+                    prompt: getSummarizeHistoryPrompt(this.agent.bot.username, this.memory, toSummarize),
+                    useSummaryModel: true
+                }),
+                3,
+                'LLM history summarization request'
+            );
 
             const updatedMemory = summary.content.trim();
             if (updatedMemory) {

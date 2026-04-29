@@ -41,7 +41,8 @@ export class Evolution {
                     JSON.stringify(longestLog.messages, null, 2),
                     shortestLog.survivedMs,
                     JSON.stringify(shortestLog.messages, null, 2)
-                )
+                ),
+                useCultureModel: true
             });
             console.log("Finished knowledgebase update");
             const content = nextKnowledgebase.content.trim();

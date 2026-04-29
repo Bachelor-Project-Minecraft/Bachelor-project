@@ -74,6 +74,8 @@ export interface LlmGenerateRequest {
     jsonSchema?: ToolSchema;
     reasoning?: LlmReasoningConfig;
     useActionModel?: boolean;
+    useCultureModel?: boolean;
+    useSummaryModel?: boolean;
 }
 
 export interface LlmChatResponse {

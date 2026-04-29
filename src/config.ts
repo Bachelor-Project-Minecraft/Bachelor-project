@@ -2,7 +2,7 @@ import { LlmModelConfig } from "./types";
 
 const chatModel: LlmModelConfig = {
   provider: 'ollama',
-  model: 'qwen3.5:9b',
+  model: 'qwen3.5:4b',
   reasoning: {
     effort: 'low' // This is just a default and can be changed when calling the llm
   }
@@ -13,6 +13,22 @@ const skillModel: LlmModelConfig = {
   model: 'x-ai/grok-4.1-fast',
   reasoning: {
     effort: 'medium' // This is just a default and can be changed when calling the llm
+  }
+};
+
+const cultureModel: LlmModelConfig = {
+  provider: 'openrouter',
+  model: 'x-ai/grok-4.1-fast',
+  reasoning: {
+    effort: 'medium'
+  }
+};
+
+const summaryModel: LlmModelConfig = {
+  provider: 'ollama',
+  model: 'gemma4:e2b',
+  reasoning: {
+    effort: 'none'
   }
 };
 
@@ -33,8 +49,12 @@ export const config = {
   llm: {
     chat: chatModel,
     action: skillModel,
+    culture: cultureModel,
+    summary: summaryModel,
     ollama: {
-      baseUrl: 'http://127.0.0.1:11434'
+      baseUrl: 'http://127.0.0.1:11434',
+      // Keep Ollama models loaded after requests to avoid cold-load timeout spikes.
+      keepAlive: -1
     },
     openRouter: {
       apiKey: process.env.OPENROUTER_API_KEY ?? ''
