@@ -47,7 +47,7 @@ export function compareEnvironmentSnapshots(
 		significantDistanceDelta,
 	)
 
-	if (current.health < previous.health - 8) {
+	if (current.health < previous.health || current.health < 8) {
 		const healthLoss = previous.health - current.health
 		steps.push({
 			title:

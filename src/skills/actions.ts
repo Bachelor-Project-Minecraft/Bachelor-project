@@ -40,8 +40,8 @@ export const SendMessageSkill: Skill = {
 };
 
 export const DoNothingSkill: Skill = {
-    name: 'Group B. do_nothing',
-    description: 'Take no action',
+    name: 'do_nothing',
+    description: 'Group B. Take no action',
     parameters: z.object({}),
     execute: async () => {
         return "<IDLE>: Chose not to act.";
@@ -50,8 +50,8 @@ export const DoNothingSkill: Skill = {
 
 // temp
 export const MeleeAttackSkill: Skill = {
-    name: 'Group B. melee_attack',
-    description: 'Attack a specific hostile entity by id within range.',
+    name: 'melee_attack',
+    description: 'Group B. Attack a specific hostile entity by id within range.',
     parameters: z.object({
         enemyId: z.union([
             z.number().int(),
@@ -98,8 +98,8 @@ export const MeleeAttackSkill: Skill = {
 };
 
 export const BowAttackSkill: Skill = {
-    name: 'Group B. bow_attack',
-    description: 'Attack a specific hostile entity by id using a bow until it is dead or arrows run out.',
+    name: 'bow_attack',
+    description: 'Group B. Attack a specific hostile entity by id using a bow until it is dead or arrows run out.',
     parameters: z.object({
         enemyId: z.union([
             z.number().int(),
@@ -247,8 +247,8 @@ export const BowAttackSkill: Skill = {
 };
 
 export const MoveToCoordinateSkill: Skill = {
-    name: 'Group B. move_to_coordinate',
-    description: 'Move to a specific world coordinate using pathfinder.',
+    name: 'move_to_coordinate',
+    description: 'Group B. Move to a specific world coordinate using pathfinder.',
     parameters: z.object({
         position: z.object({
             x: z.number().describe('Target x coordinate'),
@@ -273,8 +273,8 @@ export const MoveToCoordinateSkill: Skill = {
 };
 
 export const EquipItemInHandSkill: Skill = {
-    name: 'Group A. equip_item_in_hand',
-    description: 'Equip an inventory item in the hand by item name. This is executed instantaneous, and should be paired with other skills.',
+    name: 'equip_item_in_hand',
+    description: 'Group A. Equip an inventory item in the hand by item name. This is executed instantaneous, and should be paired with other skills.',
     parameters: z.object({
         itemName: z.string().min(1).describe('The inventory item to hold, for example iron_sword or st')
     }),
@@ -305,8 +305,8 @@ export const EquipItemInHandSkill: Skill = {
 };
 
 export const EquipGearSkill: Skill = {
-    name: 'Group A. equip_gear',
-    description: 'Equip wearable gear (helmet, chestplate, leggings, boots) from inventory. This is executed instantaneous, and should be paired with other skills.',
+    name: 'equip_gear',
+    description: 'Group A. Equip wearable gear (helmet, chestplate, leggings, boots) from inventory. This is executed instantaneous, and should be paired with other skills.',
     parameters: z.object({
         itemName: z.string().min(1).describe('The gear item to wear, for example leather_chestplate')
     }),
@@ -355,8 +355,8 @@ export const EquipGearSkill: Skill = {
 };
 
 export const EatBreadUntilFullSkill: Skill = {
-    name: 'Group B. eat_bread_until_full',
-    description: 'Eat bread from inventory until hunger is full or bread runs out.',
+    name: 'eat_bread_until_full',
+    description: 'Group B. Eat bread from inventory until hunger is full or bread runs out.',
     parameters: z.object({}),
     execute: async (bot) => {
         const maxFood = 20;
@@ -481,8 +481,8 @@ const UseActionToolParameters: ToolSchema = {
 };
 
 export const createNewActionSkill = (actionService: GeneratedActionService): Skill => ({
-    name: 'Group B. new_action',
-    description: 'Create and execute a new Minecraft action that does not yet exist',
+    name: 'new_action',
+    description: 'Group B. Create and execute a new Minecraft action that does not yet exist',
     parameters: UseActionParameters,
     toolParameters: UseActionToolParameters,
     execute: async (bot, args) => {

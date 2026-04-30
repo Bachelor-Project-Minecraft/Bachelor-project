@@ -2,7 +2,7 @@ import { LlmModelConfig } from "./types";
 
 const chatModel: LlmModelConfig = {
   provider: 'ollama',
-  model: 'qwen3.5:4b',
+  model: 'qwen3.5:9b',
   reasoning: {
     effort: 'low' // This is just a default and can be changed when calling the llm
   }
