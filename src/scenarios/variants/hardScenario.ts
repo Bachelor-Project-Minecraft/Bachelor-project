@@ -43,19 +43,19 @@ export class HardScenario extends Scenario {
             aliveAgents.forEach((agent) => {
                 for (let i = 0; i < zombieCount; i += 1) {
                     const offset = cataclysmOffsets[(wave + i) % cataclysmOffsets.length];
-                    this.runCommandAtAgent(agent, `summon zombie ~${offset.x} ~ ~${offset.z}`);
+                    this.runCommandAtAgent(agent, `summon zombie ~${offset.x} ~ ~${offset.z} {equipment:{head:{id:stone_button}}}`);
                 }
 
                 for (let i = 0; i < skeletonCount; i += 1) {
                     const offset = cataclysmOffsets[(wave + zombieCount + i) % cataclysmOffsets.length];
-                    this.runCommandAtAgent(agent, `summon skeleton ~${offset.x} ~ ~${offset.z}`);
+                    this.runCommandAtAgent(agent, `summon skeleton ~${offset.x} ~ ~${offset.z} {equipment:{head:{id:stone_button}}}`);
                 }
 
                 for (let i = 0; i < babyZombieCount; i += 1) {
                     const offset = cataclysmOffsets[(wave + zombieCount + skeletonCount + i) % cataclysmOffsets.length];
                     this.runCommandAtAgent(
                         agent,
-                        `summon zombie ~${offset.x} ~ ~${offset.z} {IsBaby:1b,CanBreakDoors:1b}`
+                        `summon zombie ~${offset.x} ~ ~${offset.z} {IsBaby:1b} {equipment:{head:{id:stone_button}}}`
                     );
                 }
 
