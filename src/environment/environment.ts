@@ -195,7 +195,7 @@ export class Environment {
 	}
 
 	private getEquippedItems(): SnapshotEquippedItem[] {
-		return (["hand", "head", "torso", "legs", "feet", "off-hand"] as const).flatMap(
+		return (["hand", "head", "torso", "legs", "feet"] as const).flatMap(
 			(destination) => {
 				let slot: number
 
