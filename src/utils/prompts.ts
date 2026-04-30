@@ -96,6 +96,7 @@ Input args:
 Output:
 {
   "parameters": "z.object({ position: z.object({ x: z.number().describe('The x coordinate of the target block'), y: z.number().describe('The y coordinate of the target block'), z: z.number().describe('The z coordinate of the target block') }).describe('The x, y and z coordinates for the block to dig') })",
+  "executionArgs": { "position": { "x": 10, "y": 63, "z": 4 } },
   "code": "const blockPosition = new Vec3(Math.floor(args.position.x), Math.floor(args.position.y), Math.floor(args.position.z));\\nconst block = bot.blockAt(blockPosition);\\nif (!block) {\\n  return \\"<NO BLOCK>: Could not find the target block.\\";\\n}\\nconst movements = new Movements(bot);\\nbot.pathfinder.setMovements(movements);\\nawait bot.pathfinder.goto(new goals.GoalNear(blockPosition.x, blockPosition.y, blockPosition.z, 1));\\nconst bestTool = bot.pathfinder.bestHarvestTool(block);\\nif (bestTool) {\\n  await bot.equip(bestTool, 'hand');\\n}\\nawait bot.dig(block);\\nreturn \\"<MINED>: Broke the target block.\\";"
 }
 
@@ -106,6 +107,7 @@ Input args:
 Output:
 {
   "parameters": "z.object({ playerName: z.string().describe('The exact Minecraft player name to follow'), options: z.object({ distance: z.number().describe('How close the bot should stay to the player'), maxTicks: z.number().describe('How long to follow before stopping') }).describe('Follow behavior options') })",
+  "executionArgs": { "playerName": "MarcusVange", "options": { "distance": 2, "maxTicks": 120 } },
   "code": "const target = bot.players[args.playerName]?.entity;\\nif (!target) {\\n  return \\"<NO PLAYER>: Could not find that player.\\";\\n}\\nconst movements = new Movements(bot);\\nbot.pathfinder.setMovements(movements);\\nbot.pathfinder.setGoal(new goals.GoalFollow(target, args.options.distance), true);\\nawait new Promise((resolve) => setTimeout(resolve, args.options.maxTicks * 50));\\nbot.pathfinder.setGoal(null);\\nreturn \\"<FOLLOWED>: Followed the player.\\";"
 }
 
@@ -116,17 +118,23 @@ Input args:
 Output:
 {
   "parameters": "z.object({ radius: z.number().describe('How far from the bot to search'), maxTargets: z.number().describe('The maximum number of matches to consider') })",
+  "executionArgs": { "radius": 6, "maxTargets": 3 },
   "code": "const nearbyEntities = Object.values(bot.entities).filter((entity) => entity.position.distanceTo(bot.entity.position) <= args.radius);\\nreturn \\"<FOUND>: Considered \\" + Math.min(nearbyEntities.length, args.maxTargets) + \\" nearby entities.\\";"
 }`;
 
 export const ACTION_GENERATION_PROMPT = `You design reusable Mineflayer tools.
 Task name: {ACTION_NAME}
 Task description: {ACTION_DESCRIPTION}
-Current args:
+Suggested args:
 {ACTION_ARGS}
+
+The environment snapshot is the calling bot's current observed Minecraft state; use it to understand nearby blocks, entities, inventory, health, and position.
+Current environment snapshot:
+{ENVIRONMENT_SNAPSHOT}
 
 Return exactly one valid JSON object with the fields:
 - parameters: a JavaScript string containing a valid root z.object(...) expression
+- executionArgs: a JSON object matching parameters, used only for the first execution
 - code: raw JavaScript body for an async function with runtime signature async (bot, args, Movements, goals, Vec3) => { ... }
 
 Available helpers:
@@ -140,7 +148,9 @@ Rules:
 - Output valid JSON only, with no markdown fences or explanations
 - The parameters string must compile as valid JavaScript and valid Zod
 - The parameters string must start with z.object(...)
-- The top-level z.object properties must appear in the same order as the current args
+- Treat suggested args as the preferred starting point; change them only when they seem incomplete, mismatched, or less useful for the task
+- Design parameters so future agents can call this saved tool correctly
+- executionArgs must validate against parameters
 - Use descriptive top-level property names like position, playerName, options, radius
 - Add .describe(...) to meaningful fields and nested objects when helpful
 - Do not include imports, TypeScript, or an outer function
@@ -172,17 +182,19 @@ export const getSummarizeHistoryPrompt = (name: string, oldMemory: string, toSum
 
 const stringifyJsonValue = (value: JsonValue): string => JSON.stringify(value, null, 2);
 
-export const getActionGenerationPrompt = (name: string, description: string, args: JsonValue[]) => {
+export const getActionGenerationPrompt = (name: string, description: string, args: JsonValue[], environmentSnapshot: string = '') => {
     const argsText = args.length > 0
         ? args
             .map((arg, index) => `${index}: ${stringifyJsonValue(arg)}`)
             .join('\n')
         : 'No args provided.';
+    const environmentText = environmentSnapshot || 'No snapshot provided.';
 
     return ACTION_GENERATION_PROMPT
         .replace('{ACTION_NAME}', name)
         .replace('{ACTION_DESCRIPTION}', description)
-        .replace('{ACTION_ARGS}', argsText);
+        .replace('{ACTION_ARGS}', argsText)
+        .replace('{ENVIRONMENT_SNAPSHOT}', environmentText);
 };
 
 export const getSystemPrompt = (name: string, memory: string, environmentSnapshot: string, knowledgebase: string = '') => {

@@ -1,7 +1,7 @@
 import { Skill } from "../types";
 import { Bot } from "mineflayer";
 import { z } from "zod";
-import { BowAttackSkill, createNewActionSkill, DoNothingSkill, EatBreadUntilFullSkill, EquipGearSkill, EquipItemInHandSkill, MeleeAttackSkill, MoveToCoordinateSkill, SendMessageSkill } from "./actions";
+import { BowAttackSkill, createNewActionSkill, DoNothingSkill, EatBreadUntilFullSkill, EquipGearSkill, EquipItemInHandSkill, MeleeAttackSkill, MoveToCoordinateSkill, SendMessageSkill } from "./skills";
 import { GeneratedActionService } from "./generatedActionService";
 
 export class SkillRegistry {

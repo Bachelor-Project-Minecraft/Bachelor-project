@@ -6,7 +6,7 @@ import { Vec3 as Vec3Constructor } from "vec3";
 import { z } from "zod";
 import { config } from "../config";
 import { LLMClient } from "../llmClient";
-import { GeneratedSkillDefinition, JsonValue, Skill } from "../types";
+import { GeneratedSkillDefinition, JsonValue, JsonValueSchema, Skill } from "../types";
 import { getActionGenerationPrompt } from "../utils/prompts";
 import { getRuntimePath } from "../utils/util";
 
@@ -54,6 +54,7 @@ const StoredActionSchema = z.object({
 
 const GeneratedSkillDefinitionSchema = z.object({
     parameters: z.string().min(1),
+    executionArgs: z.record(z.string(), JsonValueSchema),
     code: z.string().min(1)
 });
 
@@ -63,11 +64,11 @@ interface PreparedAction {
     generatedDefinition: GeneratedSkillDefinition;
     compiledAction: ActionExecutor;
     compiledParameters: z.ZodObject<any>;
-    parsedInitialArgs: unknown;
+    parsedExecutionArgs: unknown;
 }
 
 export class GeneratedActionService {
-    private readonly skillsPath = getRuntimePath('skills', 'SKILLS.json');
+    private readonly skillsPath = getRuntimePath('skills', 'generatedSkills.json');
     private readonly generationSkillsPath = getRuntimePath('evolution', 'generationSkills.json');
 
     constructor(
@@ -79,7 +80,8 @@ export class GeneratedActionService {
             executeAction: (bot: Bot, args: unknown) => Promise<string>
         ) => Skill,
         private readonly registerGeneratedSkill: RegisterGeneratedSkill,
-        private readonly runWhileWorldFrozen: RunWhileWorldFrozen
+        private readonly runWhileWorldFrozen: RunWhileWorldFrozen,
+        private readonly getEnvironmentSnapshot: () => string
     ) {}
 
     public loadGenerationSkills(): void {
@@ -128,7 +130,7 @@ export class GeneratedActionService {
                 const result = await this.runAction(
                     preparedAction.compiledAction,
                     bot,
-                    preparedAction.parsedInitialArgs
+                    preparedAction.parsedExecutionArgs
                 );
                 console.log("Finished action execution for:", actionName);
 
@@ -154,9 +156,9 @@ export class GeneratedActionService {
                     await this.saveAction(storedAction);
                     console.log("Saved action:", actionName);
                 } catch (error) {
-                    console.error(`Generated action "${actionName}" was registered but could not be written to SKILLS.json:`, error);
+                    console.error(`Generated action "${actionName}" was registered but could not be written to generatedSkills.json:`, error);
                 }
-                return result;
+                return `<NEW ACTION>: Created ${actionName} and executed it with ${this.stringifyJson(preparedAction.parsedExecutionArgs)}. ${result}`;
             } catch (error) {
                 console.error(`Generated action "${actionName}" failed during execution:`, error);
             }
@@ -187,15 +189,9 @@ export class GeneratedActionService {
             return null;
         }
 
-        const initialArgs = this.mapOrderedArgsToNamedArgs(compiledParameters, input.args);
-        if (!initialArgs) {
-            console.warn(`Generated action "${input.name}" produced a schema that does not match the provided args on attempt ${attempt}.`);
-            return null;
-        }
-
-        const parsedInitialArgs = compiledParameters.safeParse(initialArgs);
-        if (!parsedInitialArgs.success) {
-            console.warn(`Generated action "${input.name}" rejected the provided args on attempt ${attempt}: ${parsedInitialArgs.error.message}`);
+        const parsedExecutionArgs = compiledParameters.safeParse(generatedDefinition.executionArgs);
+        if (!parsedExecutionArgs.success) {
+            console.warn(`Generated action "${input.name}" rejected its executionArgs on attempt ${attempt}: ${parsedExecutionArgs.error.message}`);
             return null;
         }
 
@@ -203,13 +199,13 @@ export class GeneratedActionService {
             generatedDefinition,
             compiledAction,
             compiledParameters,
-            parsedInitialArgs: parsedInitialArgs.data
+            parsedExecutionArgs: parsedExecutionArgs.data
         };
     }
 
     private async generateActionDefinition(input: UseActionInput): Promise<GeneratedSkillDefinition | null> {
         const prompt = [
-            getActionGenerationPrompt(input.name, input.description, input.args),
+            getActionGenerationPrompt(input.name, input.description, input.args, this.getEnvironmentSnapshot()),
             'Follow this JSON schema exactly:',
             JSON.stringify(GeneratedSkillDefinitionResponseFormat)
         ].join('\n\n');
@@ -269,23 +265,6 @@ export class GeneratedActionService {
         );
     }
 
-    private mapOrderedArgsToNamedArgs(schema: z.ZodObject<any>, args: JsonValue[]): Record<string, JsonValue> | null {
-        const shape = schema.shape;
-        const parameterNames = Object.keys(shape);
-
-        if (args.length > parameterNames.length) {
-            return null;
-        }
-
-        return parameterNames.reduce<Record<string, JsonValue>>((result, parameterName, index) => {
-            if (index < args.length) {
-                result[parameterName] = args[index];
-            }
-
-            return result;
-        }, {});
-    }
-
     private async saveAction(newAction: StoredAction): Promise<void> {
         const existingActions = await this.loadActions();
         const nextActions = existingActions.filter(
@@ -326,7 +305,7 @@ export class GeneratedActionService {
                 return result.success;
             });
         } catch (error) {
-            console.warn('Could not load SKILLS.json audit log, starting from an empty list.', error);
+            console.warn('Could not load generatedSkills.json audit log, starting from an empty list.', error);
             return [];
         }
     }
@@ -368,6 +347,14 @@ export class GeneratedActionService {
 
     private normalizeText(value: string): string {
         return value.trim().toLowerCase();
+    }
+
+    private stringifyJson(value: unknown): string {
+        try {
+            return JSON.stringify(value) ?? String(value);
+        } catch {
+            return String(value);
+        }
     }
 
     private normalizeActionName(value: string): string {

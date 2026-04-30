@@ -12,6 +12,7 @@ import {
 import {
 	type EnvironmentChangeStep,
 	type SnapshotEntity,
+	type SnapshotEquippedItem,
 	type SnapshotPosition,
 	type EnvironmentSnapshot,
 	type SnapshotInventoryItem,
@@ -53,6 +54,7 @@ export class Environment {
 				slot: item.slot,
 			})) ?? []
 		const emptySlots = this.bot.inventory.emptySlotCount() ?? 0
+		const equippedItems = this.getEquippedItems()
 
 		if (!botEntity) {
 			throw new Error("Bot not found. Cannot capture environment snapshot.")
@@ -185,10 +187,37 @@ export class Environment {
 			inventory: {
 				totalItems,
 				emptySlots,
+				equipped: equippedItems,
 				items: inventoryItems,
 			},
 			allPlayers,
 		}
+	}
+
+	private getEquippedItems(): SnapshotEquippedItem[] {
+		return (["hand", "head", "torso", "legs", "feet"] as const).flatMap(
+			(destination) => {
+				let slot: number
+
+				try {
+					slot = this.bot.getEquipmentDestSlot(destination)
+				} catch {
+					return []
+				}
+
+				const item = this.bot.inventory.slots[slot]
+
+				return item
+					? [{
+						destination,
+						name: item.name,
+						displayName: item.displayName,
+						count: item.count,
+						slot,
+					}]
+					: []
+			},
+		)
 	}
 
 	private getBlockPosition(position: Vec3): Vec3 {

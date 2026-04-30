@@ -1,6 +1,5 @@
 import "dotenv/config";
 
-import { existsSync } from 'fs';
 import { Agent } from './agent';
 import { config } from './config';
 import { AgentLogStore } from './evolution/agentLogStore';
@@ -16,14 +15,10 @@ import {
     promptToContinueCurrentGenerationLine,
     promptToSelectScenario,
 } from './utils/terminalPrompts';
-import { getRuntimePath } from './utils/util';
 
 async function main() {
     try {
-        const hasExistingGenerationLine =
-            existsSync(getRuntimePath('evolution', 'generations.txt'))
-            || existsSync(getRuntimePath('evolution', 'knowledgebase.txt'))
-            || existsSync(getRuntimePath('evolution', 'generationSkills.json'));
+        const hasExistingGenerationLine = Evolution.hasExistingGenerationLine();
             
         const shouldContinueGenerationLine = hasExistingGenerationLine
             ? await promptToContinueCurrentGenerationLine()

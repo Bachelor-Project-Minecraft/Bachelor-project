@@ -36,6 +36,7 @@ export class AgentLogStore {
     private static hooksRegistered = false;
     private static condensedMetrics: CondensedMetricsFile | null = null;
     private static condensedRunIndex = -1;
+    private static condensedMetricsDirty = false;
 
     private readonly startedAtMs: number;
     private readonly startedFrozenMs: number;
@@ -87,6 +88,10 @@ export class AgentLogStore {
         const nowIso = new Date().toISOString();
         let base: CondensedMetricsFile;
 
+        if (!shouldContinueGenerationLine && fs.existsSync(filePath)) {
+            fs.rmSync(filePath, { force: true });
+        }
+
         if (shouldContinueGenerationLine && fs.existsSync(filePath)) {
             const parsed = AgentLogStore.readCondensedMetrics(filePath);
             base = parsed ?? {
@@ -109,7 +114,7 @@ export class AgentLogStore {
         base.runs.push(nextRun);
         AgentLogStore.condensedMetrics = base;
         AgentLogStore.condensedRunIndex = base.runs.length - 1;
-        AgentLogStore.writeCondensedMetrics();
+        AgentLogStore.condensedMetricsDirty = false;
     }
 
     public static resetLogsDirectory(): void {
@@ -142,6 +147,7 @@ export class AgentLogStore {
         const key = actionName.trim() || '<empty_action_name>';
         metrics.actionInvocations[key] = (metrics.actionInvocations[key] ?? 0) + 1;
         AgentLogStore.touchCurrentRun();
+        AgentLogStore.condensedMetricsDirty = true;
         AgentLogStore.writeCondensedMetrics();
     }
 
@@ -149,6 +155,7 @@ export class AgentLogStore {
         const metrics = AgentLogStore.ensureAgentMetrics(this.agentName);
         metrics.hallucinations += 1;
         AgentLogStore.touchCurrentRun();
+        AgentLogStore.condensedMetricsDirty = true;
         AgentLogStore.writeCondensedMetrics();
     }
 
@@ -331,7 +338,6 @@ export class AgentLogStore {
                 hallucinations: 0
             };
             AgentLogStore.touchCurrentRun();
-            AgentLogStore.writeCondensedMetrics();
         }
 
         return currentRun.agents[agentName];
@@ -344,7 +350,7 @@ export class AgentLogStore {
 
     private static writeCondensedMetrics(): void {
         const metrics = AgentLogStore.condensedMetrics;
-        if (!metrics) {
+        if (!metrics || !AgentLogStore.condensedMetricsDirty) {
             return;
         }
 
@@ -359,7 +365,9 @@ export class AgentLogStore {
         }
 
         AgentLogStore.touchCurrentRun();
-        AgentLogStore.writeCondensedMetrics();
+        if (AgentLogStore.condensedMetricsDirty) {
+            AgentLogStore.writeCondensedMetrics();
+        }
         AgentLogStore.appendGenerationSummary();
 
         process.removeListener(signal, AgentLogStore.handleSignal);
