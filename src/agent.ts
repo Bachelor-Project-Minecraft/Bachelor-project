@@ -54,6 +54,7 @@ export class Agent {
             this.isAlive = false;
             this.stopActivity();
             this.bot.quit();
+            console.log(this.bot.username + " died and left the game.");
         });
 
         this.bot.on('whisper', (username, message) => {
