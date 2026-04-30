@@ -6,7 +6,7 @@ import { Vec3 as Vec3Constructor } from "vec3";
 import { z } from "zod";
 import { config } from "../config";
 import { LLMClient } from "../llmClient";
-import { GeneratedSkillDefinition, JsonValue, Skill } from "../types";
+import { GeneratedSkillDefinition, JsonValue, JsonValueSchema, Skill } from "../types";
 import { getActionGenerationPrompt } from "../utils/prompts";
 import { getRuntimePath } from "../utils/util";
 
@@ -54,6 +54,7 @@ const StoredActionSchema = z.object({
 
 const GeneratedSkillDefinitionSchema = z.object({
     parameters: z.string().min(1),
+    executionArgs: z.record(z.string(), JsonValueSchema),
     code: z.string().min(1)
 });
 
@@ -63,7 +64,7 @@ interface PreparedAction {
     generatedDefinition: GeneratedSkillDefinition;
     compiledAction: ActionExecutor;
     compiledParameters: z.ZodObject<any>;
-    parsedInitialArgs: unknown;
+    parsedExecutionArgs: unknown;
 }
 
 export class GeneratedActionService {
@@ -129,7 +130,7 @@ export class GeneratedActionService {
                 const result = await this.runAction(
                     preparedAction.compiledAction,
                     bot,
-                    preparedAction.parsedInitialArgs
+                    preparedAction.parsedExecutionArgs
                 );
                 console.log("Finished action execution for:", actionName);
 
@@ -188,15 +189,9 @@ export class GeneratedActionService {
             return null;
         }
 
-        const initialArgs = this.mapOrderedArgsToNamedArgs(compiledParameters, input.args);
-        if (!initialArgs) {
-            console.warn(`Generated action "${input.name}" produced a schema that does not match the provided args on attempt ${attempt}.`);
-            return null;
-        }
-
-        const parsedInitialArgs = compiledParameters.safeParse(initialArgs);
-        if (!parsedInitialArgs.success) {
-            console.warn(`Generated action "${input.name}" rejected the provided args on attempt ${attempt}: ${parsedInitialArgs.error.message}`);
+        const parsedExecutionArgs = compiledParameters.safeParse(generatedDefinition.executionArgs);
+        if (!parsedExecutionArgs.success) {
+            console.warn(`Generated action "${input.name}" rejected its executionArgs on attempt ${attempt}: ${parsedExecutionArgs.error.message}`);
             return null;
         }
 
@@ -204,7 +199,7 @@ export class GeneratedActionService {
             generatedDefinition,
             compiledAction,
             compiledParameters,
-            parsedInitialArgs: parsedInitialArgs.data
+            parsedExecutionArgs: parsedExecutionArgs.data
         };
     }
 
@@ -268,23 +263,6 @@ export class GeneratedActionService {
                 return result;
             }
         );
-    }
-
-    private mapOrderedArgsToNamedArgs(schema: z.ZodObject<any>, args: JsonValue[]): Record<string, JsonValue> | null {
-        const shape = schema.shape;
-        const parameterNames = Object.keys(shape);
-
-        if (args.length > parameterNames.length) {
-            return null;
-        }
-
-        return parameterNames.reduce<Record<string, JsonValue>>((result, parameterName, index) => {
-            if (index < args.length) {
-                result[parameterName] = args[index];
-            }
-
-            return result;
-        }, {});
     }
 
     private async saveAction(newAction: StoredAction): Promise<void> {

@@ -11,6 +11,7 @@ export type JsonValue =
 
 export interface GeneratedSkillDefinition {
     parameters: string;
+    executionArgs: { [key: string]: JsonValue };
     code: string;
 }
 
