@@ -158,7 +158,7 @@ export class GeneratedActionService {
                 } catch (error) {
                     console.error(`Generated action "${actionName}" was registered but could not be written to SKILLS.json:`, error);
                 }
-                return result;
+                return `<NEW ACTION>: Created ${actionName} and executed it with ${this.stringifyJson(preparedAction.parsedExecutionArgs)}. ${result}`;
             } catch (error) {
                 console.error(`Generated action "${actionName}" failed during execution:`, error);
             }
@@ -347,6 +347,14 @@ export class GeneratedActionService {
 
     private normalizeText(value: string): string {
         return value.trim().toLowerCase();
+    }
+
+    private stringifyJson(value: unknown): string {
+        try {
+            return JSON.stringify(value) ?? String(value);
+        } catch {
+            return String(value);
+        }
     }
 
     private normalizeActionName(value: string): string {
