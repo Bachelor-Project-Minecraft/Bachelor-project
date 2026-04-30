@@ -81,13 +81,16 @@ export class Agent {
 
     private detectEnvironmentChanges(currentSnapshot: EnvironmentSnapshot): EnvironmentChangeStep[] {
         const previousSnapshot = this.previousEnvironmentSnapshot;
-        this.previousEnvironmentSnapshot = currentSnapshot;
 
         if (!previousSnapshot) {
             return [];
         }
 
         return this.environment.compareEnvironmentSnapshots(previousSnapshot, currentSnapshot);
+    }
+
+    private commitEnvironmentSnapshot(currentSnapshot: EnvironmentSnapshot): void {
+        this.previousEnvironmentSnapshot = currentSnapshot;
     }
 
     private formatEnvironmentChanges(steps: EnvironmentChangeStep[]): string {
@@ -111,6 +114,8 @@ export class Agent {
             return null;
         }
 
+        this.commitEnvironmentSnapshot(currentSnapshot);
+
         return this.formatEnvironmentChanges(environmentChanges);
     }
 
@@ -121,6 +126,8 @@ export class Agent {
         const environmentChanges = this.detectEnvironmentChanges(currentSnapshot);
         if (environmentChanges.length === 0) return;
         if (!this.hasTriggeringChanges(environmentChanges)) return;
+
+        this.commitEnvironmentSnapshot(currentSnapshot);
 
         this.ai.processEvent(this.bot.username, this.formatEnvironmentChanges(environmentChanges));
     }
