@@ -1,6 +1,7 @@
 import { JsonValue, JsonValueSchema, Skill, ToolSchema } from "../types";
 import { z } from "zod";
 import { GeneratedActionService } from "./generatedActionService";
+import { startBackgroundSkill } from "./backgroundSkillRunner";
 
 import { Vec3 } from "vec3";
 import { Movements, goals } from "mineflayer-pathfinder";
@@ -114,52 +115,6 @@ export const BowAttackSkill: Skill = {
         const freezePollMs = 50;
         const arrowNames = new Set(['arrow', 'spectral_arrow', 'tipped_arrow']);
         const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-        const isBotAlive = () => bot.health > 0 && Boolean(bot.entity);
-
-        const waitUntilWorldActive = async () => {
-            while (!bot.physicsEnabled) {
-                if (!isBotAlive()) {
-                    return false;
-                }
-
-                await sleep(freezePollMs);
-            }
-
-            return true;
-        };
-
-        const waitForActiveMs = async (activeMs: number) => {
-            let remaining = activeMs;
-
-            while (remaining > 0) {
-                if (!await waitUntilWorldActive()) {
-                    return false;
-                }
-
-                const chunk = Math.min(remaining, freezePollMs);
-                const chunkStart = Date.now();
-                await sleep(chunk);
-
-                if (!isBotAlive()) {
-                    return false;
-                }
-
-                if (!bot.physicsEnabled) {
-                    continue;
-                }
-
-                const chunkElapsed = Math.max(0, Date.now() - chunkStart);
-                remaining -= Math.min(chunkElapsed, chunk);
-            }
-
-            return true;
-        };
-
-        const stopUsingBow = async () => {
-            if (await waitUntilWorldActive()) {
-                bot.deactivateItem();
-            }
-        };
 
         const getArrowCount = () => bot.inventory
             .items()
@@ -176,73 +131,144 @@ export const BowAttackSkill: Skill = {
 
         const bow = bot.inventory.items().find((item) => item.name === 'bow');
         if (!bow) {
-            console.log("agent hallucinated and tried to attack with bow that didn't exist");
-            return '<NO BOW>: Cannot use bow attack because no bow is in inventory.';
+            console.log(`Could not start bow attack against ${targetEnemyId}: no bow in inventory.`);
+            return `<BOW ATTACK FAILED>: Could not start bow attack against ${targetEnemyId}.`;
         }
 
         const initialArrows = getArrowCount();
         if (initialArrows <= 0) {
-            console.log("agent hallucinated and tried to attack with no arrows");
-            return '<NO ARROWS>: Cannot use bow attack because no arrows are available.';
+            console.log(`Could not start bow attack against ${targetEnemyId}: no arrows available.`);
+            return `<BOW ATTACK FAILED>: Could not start bow attack against ${targetEnemyId}.`;
         }
 
         let target = findTarget();
         if (!target) {
-            console.log("agent hallucinated and tried to attack enemy that didn't exist");
-            return `<NO TARGET>: Could not find hostile entity with id ${targetEnemyId}.`;
+            console.log(`Could not start bow attack against ${targetEnemyId}: target was not found.`);
+            return `<BOW ATTACK FAILED>: Could not start bow attack against ${targetEnemyId}.`;
         }
 
         bot.pvp.stop();
-        await bot.equip(bow, 'hand');
 
-        let engagementElapsedMs = 0;
-        let shotsFired = 0;
+        startBackgroundSkill(bot, 'bow_attack', async (token) => {
+            const isBotAlive = () => bot.health > 0 && Boolean(bot.entity);
+            const canContinue = () => !token.cancelled && isBotAlive();
 
-        while (engagementElapsedMs < maxEngagementMs) {
-            if (!isBotAlive()) {
-                return `<DEAD>: Stopped bow attack because I am no longer alive.`;
+            const waitUntilWorldActive = async () => {
+                while (!bot.physicsEnabled) {
+                    if (!canContinue()) {
+                        return false;
+                    }
+
+                    await sleep(freezePollMs);
+                }
+
+                return canContinue();
+            };
+
+            const waitForActiveMs = async (activeMs: number) => {
+                let remaining = activeMs;
+
+                while (remaining > 0) {
+                    if (!await waitUntilWorldActive()) {
+                        return false;
+                    }
+
+                    const chunk = Math.min(remaining, freezePollMs);
+                    const chunkStart = Date.now();
+                    await sleep(chunk);
+
+                    if (!canContinue()) {
+                        return false;
+                    }
+
+                    if (!bot.physicsEnabled) {
+                        continue;
+                    }
+
+                    const chunkElapsed = Math.max(0, Date.now() - chunkStart);
+                    remaining -= Math.min(chunkElapsed, chunk);
+                }
+
+                return true;
+            };
+
+            const stopUsingBow = async () => {
+                if (token.cancelled) {
+                    bot.deactivateItem();
+                    return;
+                }
+
+                if (await waitUntilWorldActive()) {
+                    bot.deactivateItem();
+                }
+            };
+
+            try {
+                await bot.equip(bow, 'hand');
+            } catch (error) {
+                console.error(`Bow attack against ${targetEnemyId} failed while equipping bow:`, error);
+                return;
             }
 
-            const arrowsLeft = getArrowCount();
-            if (arrowsLeft <= 0) {
+            let engagementElapsedMs = 0;
+            let shotsFired = 0;
+
+            while (engagementElapsedMs < maxEngagementMs) {
+                if (!canContinue()) {
+                    console.log(`Stopped bow attack against ${targetEnemyId} because it was cancelled or the bot is no longer alive.`);
+                    return;
+                }
+
+                const arrowsLeft = getArrowCount();
+                if (arrowsLeft <= 0) {
+                    await stopUsingBow();
+                    console.log(`Stopped bow attack against ${targetEnemyId}: fired ${shotsFired} shot(s) and ran out of arrows.`);
+                    return;
+                }
+
+                target = findTarget();
+                if (!target) {
+                    await stopUsingBow();
+                    console.log(`Stopped bow attack against ${targetEnemyId}: target is no longer alive or visible.`);
+                    return;
+                }
+
+                const aimPosition = target.position.offset(0, Math.max(0.6, (target.height ?? 1.8) * 0.75), 0);
+                if (!await waitUntilWorldActive()) {
+                    console.log(`Stopped bow attack against ${targetEnemyId} before aiming.`);
+                    return;
+                }
+
+                await bot.lookAt(aimPosition, true);
+
+                if (!await waitUntilWorldActive()) {
+                    console.log(`Stopped bow attack against ${targetEnemyId} before drawing.`);
+                    return;
+                }
+
+                bot.activateItem();
+                if (!await waitForActiveMs(holdDrawMs)) {
+                    await stopUsingBow();
+                    console.log(`Stopped bow attack against ${targetEnemyId} while drawing.`);
+                    return;
+                }
+
                 await stopUsingBow();
-                return `<OUT OF ARROWS>: Fired ${shotsFired} shot(s). Stopped attacking ${target.name ?? 'target'} because arrows ran out.`;
-            }
+                shotsFired += 1;
 
-            target = findTarget();
-            if (!target) {
-                await stopUsingBow();
-                return `<TARGET DOWN>: Stopped bow attack because target id ${targetEnemyId} is no longer alive or in range.`;
-            }
+                if (!await waitForActiveMs(cooldownMs)) {
+                    console.log(`Stopped bow attack against ${targetEnemyId} during cooldown.`);
+                    return;
+                }
 
-            const aimPosition = target.position.offset(0, Math.max(0.6, (target.height ?? 1.8) * 0.75), 0);
-            if (!await waitUntilWorldActive()) {
-                return `<DEAD>: Stopped bow attack because I am no longer alive.`;
-            }
-
-            await bot.lookAt(aimPosition, true);
-
-            if (!await waitUntilWorldActive()) {
-                return `<DEAD>: Stopped bow attack because I am no longer alive.`;
-            }
-
-            bot.activateItem();
-            if (!await waitForActiveMs(holdDrawMs)) {
-                return `<DEAD>: Stopped bow attack because I am no longer alive.`;
+                engagementElapsedMs += holdDrawMs + cooldownMs;
             }
 
             await stopUsingBow();
-            shotsFired += 1;
+            console.log(`Stopped bow attack against ${targetEnemyId}: fired ${shotsFired} shot(s) and timed out.`);
+        });
 
-            if (!await waitForActiveMs(cooldownMs)) {
-                return `<DEAD>: Stopped bow attack because I am no longer alive.`;
-            }
-
-            engagementElapsedMs += holdDrawMs + cooldownMs;
-        }
-
-        await stopUsingBow();
-        return `<ATTACK TIMEOUT>: Fired ${shotsFired} shot(s) at target id ${targetEnemyId} but engagement timed out.`;
+        return `<BOW ATTACK>: Attacking ${targetEnemyId} with a bow.`;
     }
 };
 
@@ -264,11 +290,23 @@ export const MoveToCoordinateSkill: Skill = {
         );
         const radius = typeof args.radius === 'number' ? Math.max(0, Math.min(4, args.radius)) : 1;
 
-        const movements = new Movements(bot);
-        bot.pathfinder.setMovements(movements);
-        await bot.pathfinder.goto(new goals.GoalNear(targetPosition.x, targetPosition.y, targetPosition.z, radius));
+        startBackgroundSkill(bot, 'move_to_coordinate', async (token) => {
+            const movements = new Movements(bot);
+            bot.pathfinder.setMovements(movements);
 
-        return `<MOVED>: Moved toward (${targetPosition.x}, ${targetPosition.y}, ${targetPosition.z}) with radius ${radius}.`;
+            try {
+                await bot.pathfinder.goto(new goals.GoalNear(targetPosition.x, targetPosition.y, targetPosition.z, radius));
+                if (!token.cancelled) {
+                    console.log(`Finished moving toward (${targetPosition.x}, ${targetPosition.y}, ${targetPosition.z}) with radius ${radius}.`);
+                }
+            } catch (error) {
+                if (!token.cancelled) {
+                    console.error(`Failed moving toward (${targetPosition.x}, ${targetPosition.y}, ${targetPosition.z}):`, error);
+                }
+            }
+        });
+
+        return `<MOVING>: Moving toward (${targetPosition.x}, ${targetPosition.y}, ${targetPosition.z}) with radius ${radius}.`;
     }
 };
 
@@ -364,46 +402,6 @@ export const EatBreadUntilFullSkill: Skill = {
         const settleMs = 120;
         const freezePollMs = 50;
         const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-        const isBotAlive = () => bot.health > 0 && Boolean(bot.entity);
-
-        const waitUntilWorldActive = async () => {
-            while (!bot.physicsEnabled) {
-                if (!isBotAlive()) {
-                    return false;
-                }
-
-                await sleep(freezePollMs);
-            }
-
-            return true;
-        };
-
-        const waitForActiveMs = async (activeMs: number) => {
-            let remaining = activeMs;
-
-            while (remaining > 0) {
-                if (!await waitUntilWorldActive()) {
-                    return false;
-                }
-
-                const chunk = Math.min(remaining, freezePollMs);
-                const chunkStart = Date.now();
-                await sleep(chunk);
-
-                if (!isBotAlive()) {
-                    return false;
-                }
-
-                if (!bot.physicsEnabled) {
-                    continue;
-                }
-
-                const chunkElapsed = Math.max(0, Date.now() - chunkStart);
-                remaining -= Math.min(chunkElapsed, chunk);
-            }
-
-            return true;
-        };
 
         const findBread = () => bot.inventory.items().find((item) => item.name === 'bread');
 
@@ -417,41 +415,98 @@ export const EatBreadUntilFullSkill: Skill = {
             return '<NO BREAD>: Cannot eat because no bread is in inventory.';
         }
 
-        let breadEaten = 0;
+        startBackgroundSkill(bot, 'eat_bread_until_full', async (token) => {
+            const isBotAlive = () => bot.health > 0 && Boolean(bot.entity);
+            const canContinue = () => !token.cancelled && isBotAlive();
 
-        while ((bot.food ?? 0) < maxFood) {
-            if (!isBotAlive()) {
-                return `<DEAD>: Stopped eating because I am no longer alive.`;
+            const waitUntilWorldActive = async () => {
+                while (!bot.physicsEnabled) {
+                    if (!canContinue()) {
+                        return false;
+                    }
+
+                    await sleep(freezePollMs);
+                }
+
+                return canContinue();
+            };
+
+            const waitForActiveMs = async (activeMs: number) => {
+                let remaining = activeMs;
+
+                while (remaining > 0) {
+                    if (!await waitUntilWorldActive()) {
+                        return false;
+                    }
+
+                    const chunk = Math.min(remaining, freezePollMs);
+                    const chunkStart = Date.now();
+                    await sleep(chunk);
+
+                    if (!canContinue()) {
+                        return false;
+                    }
+
+                    if (!bot.physicsEnabled) {
+                        continue;
+                    }
+
+                    const chunkElapsed = Math.max(0, Date.now() - chunkStart);
+                    remaining -= Math.min(chunkElapsed, chunk);
+                }
+
+                return true;
+            };
+
+            let breadEaten = 0;
+
+            while ((bot.food ?? 0) < maxFood) {
+                if (!canContinue()) {
+                    bot.deactivateItem();
+                    console.log(`Stopped eating bread because it was cancelled or the bot is no longer alive.`);
+                    return;
+                }
+
+                const bread = findBread();
+                if (!bread) {
+                    bot.deactivateItem();
+                    console.log(`Stopped eating bread: ate ${breadEaten} bread and ran out. Hunger is ${bot.food ?? 0}/${maxFood}.`);
+                    return;
+                }
+
+                await bot.equip(bread, 'hand');
+                if (!await waitUntilWorldActive()) {
+                    bot.deactivateItem();
+                    console.log(`Stopped eating bread before consuming.`);
+                    return;
+                }
+
+                bot.activateItem();
+                if (!await waitForActiveMs(consumeMs)) {
+                    bot.deactivateItem();
+                    console.log(`Stopped eating bread while consuming.`);
+                    return;
+                }
+
+                if (!await waitUntilWorldActive()) {
+                    bot.deactivateItem();
+                    console.log(`Stopped eating bread before settling.`);
+                    return;
+                }
+
+                bot.deactivateItem();
+                if (!await waitForActiveMs(settleMs)) {
+                    console.log(`Stopped eating bread while settling.`);
+                    return;
+                }
+
+                breadEaten += 1;
             }
 
-            const bread = findBread();
-            if (!bread) {
-                return `<OUT OF BREAD>: Ate ${breadEaten} bread. Hunger is ${bot.food ?? 0}/${maxFood}.`;
-            }
+            console.log(`Finished eating bread: ate ${breadEaten} bread and restored hunger to ${bot.food ?? 0}/${maxFood}.`);
+        });
 
-            await bot.equip(bread, 'hand');
-            if (!await waitUntilWorldActive()) {
-                return `<DEAD>: Stopped eating because I am no longer alive.`;
-            }
-
-            bot.activateItem();
-            if (!await waitForActiveMs(consumeMs)) {
-                return `<DEAD>: Stopped eating because I am no longer alive.`;
-            }
-
-            if (!await waitUntilWorldActive()) {
-                return `<DEAD>: Stopped eating because I am no longer alive.`;
-            }
-
-            bot.deactivateItem();
-            if (!await waitForActiveMs(settleMs)) {
-                return `<DEAD>: Stopped eating because I am no longer alive.`;
-            }
-
-            breadEaten += 1;
-        }
-
-        return `<FED>: Ate ${breadEaten} bread and restored hunger to ${bot.food ?? 0}/${maxFood}.`;
+        return `<EATING>: Eating bread until hunger is full.`;
     }
 };
 

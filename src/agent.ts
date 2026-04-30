@@ -7,6 +7,7 @@ import { AIController } from './ai';
 import { Environment } from './environment/environment';
 import type { Scenario } from './scenarios';
 import type { EnvironmentChangeStep, EnvironmentSnapshot } from './environment/types';
+import { stopActiveBackgroundSkill } from './skills/backgroundSkillRunner';
 
 export class Agent {
     public bot: Bot;
@@ -130,8 +131,9 @@ export class Agent {
         this.bot.physicsEnabled = !freeze;
     }
 
-    private stopActivity(): void {
+    public stopActivity(): void {
         try {
+            stopActiveBackgroundSkill(this.bot);
             this.bot.pvp?.stop();
             this.bot.pathfinder?.stop();
             this.bot.clearControlStates();

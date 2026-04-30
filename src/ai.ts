@@ -102,6 +102,7 @@ export class AIController {
 
     private async generateResponse() {
         try {
+            this.agent.stopActivity();
             const response = await this.generateQueuedResponse();
             const toolCalls = response.toolCalls;
 
@@ -187,8 +188,6 @@ export class AIController {
             '<INVALID TOOL ARGUMENTS>',
             '<NO TARGET>',
             '<NO ITEM>',
-            '<NO BOW>',
-            '<NO ARROWS>',
             '<NO BREAD>',
             '<ALREADY FULL>',
             '<NOT GEAR>'
