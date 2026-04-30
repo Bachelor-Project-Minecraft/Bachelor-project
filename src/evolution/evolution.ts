@@ -78,16 +78,13 @@ export class Evolution {
         }
     }
 
+    public static hasExistingGenerationLine(): boolean {
+        return Evolution.getGenerationLineFilePaths().some((filePath) => fs.existsSync(filePath));
+    }
+
     public static resetGenerationLine(): void {
-        for (const filePath of [
-            Evolution.getGenerationsFilePath(),
-            Evolution.getKnowledgebaseFilePath(),
-            Evolution.getGenerationSkillsFilePath(),
-            Evolution.getCondensedMetricsFilePath()
-        ]) {
-            if (fs.existsSync(filePath)) {
-                fs.rmSync(filePath, { force: true });
-            }
+        for (const filePath of Evolution.getGenerationLineFilePaths()) {
+            fs.rmSync(filePath, { force: true });
         }
     }
 
@@ -109,6 +106,15 @@ export class Evolution {
 
     private static getCondensedMetricsFilePath(): string {
         return getRuntimePath('evolution', 'condensedMetrics.txt');
+    }
+
+    private static getGenerationLineFilePaths(): string[] {
+        return [
+            Evolution.getGenerationsFilePath(),
+            Evolution.getKnowledgebaseFilePath(),
+            Evolution.getGenerationSkillsFilePath(),
+            Evolution.getCondensedMetricsFilePath()
+        ];
     }
 
     private static getStoredActions(filePath: string): StoredAction[] {
