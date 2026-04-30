@@ -40,7 +40,8 @@ export class AIController {
                 (name, description, parameters, executeAction) =>
                     this.registry.createGeneratedSkill(name, description, parameters, executeAction),
                 (skill) => this.registry.registerGeneratedSkill(skill),
-                (work) => this.agent.server.runWhileWorldFrozen(work)
+                (work) => this.agent.server.runWhileWorldFrozen(work),
+                () => JSON.stringify(this.agent.observeEnvironment())
             )
         );
         this.knowledgebase = Evolution.getKnowledgebase();

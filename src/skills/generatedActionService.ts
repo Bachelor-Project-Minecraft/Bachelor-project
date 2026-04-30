@@ -79,7 +79,8 @@ export class GeneratedActionService {
             executeAction: (bot: Bot, args: unknown) => Promise<string>
         ) => Skill,
         private readonly registerGeneratedSkill: RegisterGeneratedSkill,
-        private readonly runWhileWorldFrozen: RunWhileWorldFrozen
+        private readonly runWhileWorldFrozen: RunWhileWorldFrozen,
+        private readonly getEnvironmentSnapshot: () => string
     ) {}
 
     public loadGenerationSkills(): void {
@@ -209,7 +210,7 @@ export class GeneratedActionService {
 
     private async generateActionDefinition(input: UseActionInput): Promise<GeneratedSkillDefinition | null> {
         const prompt = [
-            getActionGenerationPrompt(input.name, input.description, input.args),
+            getActionGenerationPrompt(input.name, input.description, input.args, this.getEnvironmentSnapshot()),
             'Follow this JSON schema exactly:',
             JSON.stringify(GeneratedSkillDefinitionResponseFormat)
         ].join('\n\n');

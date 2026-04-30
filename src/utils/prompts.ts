@@ -122,8 +122,12 @@ Output:
 export const ACTION_GENERATION_PROMPT = `You design reusable Mineflayer tools.
 Task name: {ACTION_NAME}
 Task description: {ACTION_DESCRIPTION}
-Current args:
+Args:
 {ACTION_ARGS}
+
+The environment snapshot is the calling bot's current observed Minecraft state; use it to understand nearby blocks, entities, inventory, health, and position.
+Current environment snapshot:
+{ENVIRONMENT_SNAPSHOT}
 
 Return exactly one valid JSON object with the fields:
 - parameters: a JavaScript string containing a valid root z.object(...) expression
@@ -172,17 +176,19 @@ export const getSummarizeHistoryPrompt = (name: string, oldMemory: string, toSum
 
 const stringifyJsonValue = (value: JsonValue): string => JSON.stringify(value, null, 2);
 
-export const getActionGenerationPrompt = (name: string, description: string, args: JsonValue[]) => {
+export const getActionGenerationPrompt = (name: string, description: string, args: JsonValue[], environmentSnapshot: string = '') => {
     const argsText = args.length > 0
         ? args
             .map((arg, index) => `${index}: ${stringifyJsonValue(arg)}`)
             .join('\n')
         : 'No args provided.';
+    const environmentText = environmentSnapshot || 'No snapshot provided.';
 
     return ACTION_GENERATION_PROMPT
         .replace('{ACTION_NAME}', name)
         .replace('{ACTION_DESCRIPTION}', description)
-        .replace('{ACTION_ARGS}', argsText);
+        .replace('{ACTION_ARGS}', argsText)
+        .replace('{ENVIRONMENT_SNAPSHOT}', environmentText);
 };
 
 export const getSystemPrompt = (name: string, memory: string, environmentSnapshot: string, knowledgebase: string = '') => {
