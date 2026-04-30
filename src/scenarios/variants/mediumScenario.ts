@@ -38,17 +38,17 @@ export class mediumScenario extends Scenario {
             aliveAgents.forEach((agent) => {
                 for (let i = 0; i < zombieCount; i += 1) {
                     const offset = siegeOffsets[(wave + i) % siegeOffsets.length];
-                    this.runCommandAtAgent(agent, `summon zombie ~${offset.x} ~ ~${offset.z}`);
+                    this.runCommandAtAgent(agent, `summon zombie ~${offset.x} ~ ~${offset.z} {equipment:{head:{id:stone_button}}}`);
                 }
 
                 for (let i = 0; i < skeletonCount; i += 1) {
                     const offset = siegeOffsets[(wave + zombieCount + i) % siegeOffsets.length];
-                    this.runCommandAtAgent(agent, `summon skeleton ~${offset.x} ~ ~${offset.z}`);
+                    this.runCommandAtAgent(agent, `summon skeleton ~${offset.x} ~ ~${offset.z} {equipment:{head:{id:stone_button}}}`);
                 }
 
                 for (let i = 0; i < huskCount; i += 1) {
                     const offset = siegeOffsets[(wave + zombieCount + skeletonCount + i) % siegeOffsets.length];
-                    this.runCommandAtAgent(agent, `summon husk ~${offset.x} ~ ~${offset.z}`);
+                    this.runCommandAtAgent(agent, `summon husk ~${offset.x} ~ ~${offset.z} {equipment:{head:{id:stone_button}}}`);
                 }
             });
         });
