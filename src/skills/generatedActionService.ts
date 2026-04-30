@@ -68,7 +68,7 @@ interface PreparedAction {
 }
 
 export class GeneratedActionService {
-    private readonly skillsPath = getRuntimePath('skills', 'SKILLS.json');
+    private readonly skillsPath = getRuntimePath('skills', 'generatedSkills.json');
     private readonly generationSkillsPath = getRuntimePath('evolution', 'generationSkills.json');
 
     constructor(
@@ -156,7 +156,7 @@ export class GeneratedActionService {
                     await this.saveAction(storedAction);
                     console.log("Saved action:", actionName);
                 } catch (error) {
-                    console.error(`Generated action "${actionName}" was registered but could not be written to SKILLS.json:`, error);
+                    console.error(`Generated action "${actionName}" was registered but could not be written to generatedSkills.json:`, error);
                 }
                 return `<NEW ACTION>: Created ${actionName} and executed it with ${this.stringifyJson(preparedAction.parsedExecutionArgs)}. ${result}`;
             } catch (error) {
@@ -305,7 +305,7 @@ export class GeneratedActionService {
                 return result.success;
             });
         } catch (error) {
-            console.warn('Could not load SKILLS.json audit log, starting from an empty list.', error);
+            console.warn('Could not load generatedSkills.json audit log, starting from an empty list.', error);
             return [];
         }
     }

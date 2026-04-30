@@ -64,7 +64,7 @@ export class Evolution {
             const filePath = Evolution.getGenerationSkillsFilePath();
             const existingSkills = Evolution.getStoredActions(filePath);
             const existingSkillNames = new Set(existingSkills.map((skill) => Evolution.normalizeText(skill.name)));
-            const newSkills = Evolution.getStoredActions(getRuntimePath('skills', 'SKILLS.json'))
+            const newSkills = Evolution.getStoredActions(getRuntimePath('skills', 'generatedSkills.json'))
                 .filter((skill) => skill.count >= config.actions.persistSkillMinUseCount)
                 .filter((skill) => !existingSkillNames.has(Evolution.normalizeText(skill.name)))
                 .sort((left, right) => right.count - left.count)

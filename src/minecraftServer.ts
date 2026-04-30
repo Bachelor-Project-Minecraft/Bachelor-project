@@ -170,7 +170,7 @@ export class MinecraftServer {
         const serverDirectory = getRuntimePath('server');
         const worldPath = path.join(serverDirectory, 'world');
         const cleanWorldPath = path.join(serverDirectory, 'world_clean');
-        const skillsPath = getRuntimePath('skills', 'SKILLS.json');
+        const skillsPath = getRuntimePath('skills', 'generatedSkills.json');
 
         try {
             if (!fs.existsSync(cleanWorldPath)) {
