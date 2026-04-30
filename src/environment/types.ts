@@ -32,6 +32,10 @@ export interface SnapshotInventoryItem {
 	slot: number
 }
 
+export interface SnapshotEquippedItem extends SnapshotInventoryItem {
+	destination: string
+}
+
 export interface EnvironmentSnapshot {
 	health: number
 	food: number
@@ -48,6 +52,7 @@ export interface EnvironmentSnapshot {
 	inventory: {
 		totalItems: number
 		emptySlots: number
+		equipped: SnapshotEquippedItem[]
 		items: SnapshotInventoryItem[]
 	}
 	allPlayers: SnapshotEntity[]
