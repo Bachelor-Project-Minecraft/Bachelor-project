@@ -82,7 +82,8 @@ export class Evolution {
         for (const filePath of [
             Evolution.getGenerationsFilePath(),
             Evolution.getKnowledgebaseFilePath(),
-            Evolution.getGenerationSkillsFilePath()
+            Evolution.getGenerationSkillsFilePath(),
+            Evolution.getCondensedMetricsFilePath()
         ]) {
             if (fs.existsSync(filePath)) {
                 fs.rmSync(filePath, { force: true });
@@ -104,6 +105,10 @@ export class Evolution {
 
     private static getGenerationSkillsFilePath(): string {
         return getRuntimePath('evolution', 'generationSkills.json');
+    }
+
+    private static getCondensedMetricsFilePath(): string {
+        return getRuntimePath('evolution', 'condensedMetrics.txt');
     }
 
     private static getStoredActions(filePath: string): StoredAction[] {

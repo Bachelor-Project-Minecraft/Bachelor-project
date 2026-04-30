@@ -116,7 +116,11 @@ export class AIController {
                     break;
                 }
 
+                this.log.recordActionInvocation(toolCall.function.name);
                 const result = await this.executeToolCall(toolCall);
+                if (this.isHallucinationResult(result)) {
+                    this.log.recordHallucination();
+                }
                 this.appendMessageToHistory({
                     role: 'tool',
                     content: `Me ${result}`,
@@ -175,6 +179,28 @@ export class AIController {
 
     private canAct(): boolean {
         return this.agent.isAlive && this.agent.bot.health > 0;
+    }
+
+    private isHallucinationResult(result: string): boolean {
+        const hallucinationPrefixes = new Set([
+            '<TOOL UNAVAILABLE>',
+            '<INVALID TOOL ARGUMENTS>',
+            '<NO TARGET>',
+            '<NO ITEM>',
+            '<NO BOW>',
+            '<NO ARROWS>',
+            '<NO BREAD>',
+            '<ALREADY FULL>',
+            '<NOT GEAR>'
+        ]);
+
+        for (const prefix of hallucinationPrefixes) {
+            if (result.startsWith(prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private async resolveToolArguments(skill: Skill, rawArgs: unknown): Promise<unknown | null> {

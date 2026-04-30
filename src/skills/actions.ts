@@ -7,7 +7,7 @@ import { Movements, goals } from "mineflayer-pathfinder";
 
 export const SendMessageSkill: Skill = {
     name: 'send_message',
-    description: 'Send a private message to one or more players. Use this only for survival-relevant coordination.',
+    description: 'Group A. Send a private message to one or more players. Use this only for survival-relevant coordination.',
     parameters: z.object({
         message: z.string().describe('The message to send'),
         receivers: z.array(z.string()).min(1).describe('The exact Minecraft usernames to message (must be valid and non-empty)')
@@ -40,7 +40,7 @@ export const SendMessageSkill: Skill = {
 };
 
 export const DoNothingSkill: Skill = {
-    name: 'do_nothing',
+    name: 'Group B. do_nothing',
     description: 'Take no action',
     parameters: z.object({}),
     execute: async () => {
@@ -50,7 +50,7 @@ export const DoNothingSkill: Skill = {
 
 // temp
 export const MeleeAttackSkill: Skill = {
-    name: 'melee_attack',
+    name: 'Group B. melee_attack',
     description: 'Attack a specific hostile entity by id within range.',
     parameters: z.object({
         enemyId: z.union([
@@ -84,7 +84,7 @@ export const MeleeAttackSkill: Skill = {
             ));
 
         if (!enemy) {
-            console.log("agent hallusinated and tried to attack enemy that didn't exist");
+            console.log("agent hallucinated and tried to attack enemy that didn't exist");
             return `<NO TARGET>: Could not find hostile entity with id ${targetEnemyId} in range.`;
         }
 
@@ -98,7 +98,7 @@ export const MeleeAttackSkill: Skill = {
 };
 
 export const BowAttackSkill: Skill = {
-    name: 'bow_attack',
+    name: 'Group B. bow_attack',
     description: 'Attack a specific hostile entity by id using a bow until it is dead or arrows run out.',
     parameters: z.object({
         enemyId: z.union([
@@ -176,19 +176,19 @@ export const BowAttackSkill: Skill = {
 
         const bow = bot.inventory.items().find((item) => item.name === 'bow');
         if (!bow) {
-            console.log("agent hallusinated and tried to attack with bow that didn't exist");
+            console.log("agent hallucinated and tried to attack with bow that didn't exist");
             return '<NO BOW>: Cannot use bow attack because no bow is in inventory.';
         }
 
         const initialArrows = getArrowCount();
         if (initialArrows <= 0) {
-            console.log("agent hallusinated and tried to attack with no arrows");
+            console.log("agent hallucinated and tried to attack with no arrows");
             return '<NO ARROWS>: Cannot use bow attack because no arrows are available.';
         }
 
         let target = findTarget();
         if (!target) {
-            console.log("agent hallusinated and tried to attack enemy that didn't exist");
+            console.log("agent hallucinated and tried to attack enemy that didn't exist");
             return `<NO TARGET>: Could not find hostile entity with id ${targetEnemyId}.`;
         }
 
@@ -247,12 +247,11 @@ export const BowAttackSkill: Skill = {
 };
 
 export const MoveToCoordinateSkill: Skill = {
-    name: 'move_to_coordinate',
+    name: 'Group B. move_to_coordinate',
     description: 'Move to a specific world coordinate using pathfinder.',
     parameters: z.object({
         position: z.object({
             x: z.number().describe('Target x coordinate'),
-            y: z.number().describe('Target y coordinate'),
             z: z.number().describe('Target z coordinate')
         }).describe('The destination coordinates to move to'),
         radius: z.number().min(0).max(4).optional().describe('How close is close enough to the destination (default: 1)')
@@ -260,7 +259,7 @@ export const MoveToCoordinateSkill: Skill = {
     execute: async (bot, args) => {
         const targetPosition = new Vec3(
             Math.floor(args.position.x),
-            Math.floor(args.position.y),
+            0,
             Math.floor(args.position.z)
         );
         const radius = typeof args.radius === 'number' ? Math.max(0, Math.min(4, args.radius)) : 1;
@@ -274,7 +273,7 @@ export const MoveToCoordinateSkill: Skill = {
 };
 
 export const EquipItemInHandSkill: Skill = {
-    name: 'equip_item_in_hand',
+    name: 'Group A. equip_item_in_hand',
     description: 'Equip an inventory item in the hand by item name. This is executed instantaneous, and should be paired with other skills.',
     parameters: z.object({
         itemName: z.string().min(1).describe('The inventory item to hold, for example iron_sword or st')
@@ -306,7 +305,7 @@ export const EquipItemInHandSkill: Skill = {
 };
 
 export const EquipGearSkill: Skill = {
-    name: 'equip_gear',
+    name: 'Group A. equip_gear',
     description: 'Equip wearable gear (helmet, chestplate, leggings, boots) from inventory. This is executed instantaneous, and should be paired with other skills.',
     parameters: z.object({
         itemName: z.string().min(1).describe('The gear item to wear, for example leather_chestplate')
@@ -329,6 +328,7 @@ export const EquipGearSkill: Skill = {
         });
 
         if (!selectedItem) {
+            console.log("agent hallucinated and tried to equip item that didn't exist");
             return `<NO ITEM>: Could not find ${args.itemName} in inventory.`;
         }
 
@@ -355,7 +355,7 @@ export const EquipGearSkill: Skill = {
 };
 
 export const EatBreadUntilFullSkill: Skill = {
-    name: 'eat_bread_until_full',
+    name: 'Group B. eat_bread_until_full',
     description: 'Eat bread from inventory until hunger is full or bread runs out.',
     parameters: z.object({}),
     execute: async (bot) => {
@@ -408,10 +408,12 @@ export const EatBreadUntilFullSkill: Skill = {
         const findBread = () => bot.inventory.items().find((item) => item.name === 'bread');
 
         if ((bot.food ?? 0) >= maxFood) {
+            console.log("agent hallucinated and tried to eat while at full hunger");
             return `<ALREADY FULL>: Hunger is already full (${bot.food ?? 0}/${maxFood}).`;
         }
 
         if (!findBread()) {
+            console.log("agent hallucinated and tried to eat bread that didn't exist");
             return '<NO BREAD>: Cannot eat because no bread is in inventory.';
         }
 
@@ -479,7 +481,7 @@ const UseActionToolParameters: ToolSchema = {
 };
 
 export const createNewActionSkill = (actionService: GeneratedActionService): Skill => ({
-    name: 'new_action',
+    name: 'Group B. new_action',
     description: 'Create and execute a new Minecraft action that does not yet exist',
     parameters: UseActionParameters,
     toolParameters: UseActionToolParameters,

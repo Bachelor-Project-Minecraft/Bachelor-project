@@ -34,6 +34,8 @@ async function main() {
             clearSelectedScenario();
         }
 
+        AgentLogStore.initializeCondensedMetrics(shouldContinueGenerationLine);
+
         const selectedScenario = await promptToSelectScenario(
             availableScenarios,
             getDefaultScenario()
@@ -54,6 +56,13 @@ async function main() {
         });
         server.sendCommand('gamerule spawnRadius 0');
         server.sendCommand('gamerule send_command_feedback false');
+
+        config.admins.forEach(admin => {
+            server.onPlayerJoin(admin, (playerName) => {
+                server.sendCommand(`gamemode spectator ${playerName}`);
+                console.log(`[Server] ${playerName} joined - automatically set to spectator mode.`);
+            });
+        });
 
         const agents = config.agents.map((agentName) => new Agent(server, agentName, selectedScenario));
         await selectedScenario.start(server, agents);

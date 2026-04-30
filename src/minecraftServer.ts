@@ -14,6 +14,7 @@ export class MinecraftServer {
     private agentExecutionQueue: Promise<void>;
     private frozenAccumulatedMs: number;
     private frozenStartedAt: number | null;
+    private playerJoinCallbacks: Map<string, (playerName: string) => void> = new Map();
 
     public isFrozen: Boolean;
     public agents: Set<Agent> = new Set();
@@ -56,6 +57,15 @@ export class MinecraftServer {
                 if (output.includes('For help, type "help"')) {
                     console.log('[Server] Server boot complete.');
                     resolve();
+                }
+
+                const playerJoinMatch = output.match(/\[\d+:\d+:\d+\]\s+\[.*?\]:\s*(\w+)\s+joined the game/);
+                if (playerJoinMatch) {
+                    const playerName = playerJoinMatch[1];
+                    const callbacks = this.playerJoinCallbacks.get(playerName);
+                    if (callbacks) {
+                        callbacks(playerName);
+                    }
                 }
             });
 
@@ -145,6 +155,10 @@ export class MinecraftServer {
             return this.frozenAccumulatedMs + (Date.now() - this.frozenStartedAt);
         }
         return this.frozenAccumulatedMs;
+    }
+
+    public onPlayerJoin(playerName: string, callback: (playerName: string) => void): void {
+        this.playerJoinCallbacks.set(playerName, callback);
     }
 
     public resetWorld(): void{

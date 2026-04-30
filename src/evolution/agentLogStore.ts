@@ -15,14 +15,33 @@ export interface AgentVerboseLogRecord extends AgentLogRecord {
     llmCalls: LlmCallLog[];
 }
 
+interface AgentCondensedMetrics {
+    actionInvocations: Record<string, number>;
+    hallucinations: number;
+}
+
+interface GenerationRunMetrics {
+    runStartedAt: string;
+    lastUpdatedAt: string;
+    agents: Record<string, AgentCondensedMetrics>;
+}
+
+interface CondensedMetricsFile {
+    generationLineStartedAt: string;
+    runs: GenerationRunMetrics[];
+}
+
 export class AgentLogStore {
     private static stores: Set<AgentLogStore> = new Set();
     private static hooksRegistered = false;
+    private static condensedMetrics: CondensedMetricsFile | null = null;
+    private static condensedRunIndex = -1;
 
     private readonly startedAtMs: number;
     private readonly startedFrozenMs: number;
     private readonly conciseFilePath: string;
     private readonly verboseFilePath: string;
+    private readonly agentName: string;
     private readonly isAgentAlive: () => boolean;
     private readonly getFrozenMs: () => number;
     private readonly conciseRecord: AgentLogRecord;
@@ -33,6 +52,7 @@ export class AgentLogStore {
         isAgentAlive: () => boolean,
         getFrozenMs: () => number = () => 0
     ) {
+        this.agentName = agentName;
         this.startedAtMs = Date.now();
         this.getFrozenMs = getFrozenMs;
         this.startedFrozenMs = this.getFrozenMs();
@@ -56,9 +76,40 @@ export class AgentLogStore {
 
         this.ensureLogDirectory();
         this.writeRecords();
+        AgentLogStore.ensureAgentMetrics(agentName);
 
         AgentLogStore.stores.add(this);
         AgentLogStore.registerShutdownHooks();
+    }
+
+    public static initializeCondensedMetrics(shouldContinueGenerationLine: boolean): void {
+        const filePath = AgentLogStore.getCondensedMetricsFilePath();
+        const nowIso = new Date().toISOString();
+        let base: CondensedMetricsFile;
+
+        if (shouldContinueGenerationLine && fs.existsSync(filePath)) {
+            const parsed = AgentLogStore.readCondensedMetrics(filePath);
+            base = parsed ?? {
+                generationLineStartedAt: nowIso,
+                runs: []
+            };
+        } else {
+            base = {
+                generationLineStartedAt: nowIso,
+                runs: []
+            };
+        }
+
+        const nextRun: GenerationRunMetrics = {
+            runStartedAt: nowIso,
+            lastUpdatedAt: nowIso,
+            agents: {}
+        };
+
+        base.runs.push(nextRun);
+        AgentLogStore.condensedMetrics = base;
+        AgentLogStore.condensedRunIndex = base.runs.length - 1;
+        AgentLogStore.writeCondensedMetrics();
     }
 
     public static resetLogsDirectory(): void {
@@ -86,6 +137,21 @@ export class AgentLogStore {
         this.writeVerboseRecord();
     }
 
+    public recordActionInvocation(actionName: string): void {
+        const metrics = AgentLogStore.ensureAgentMetrics(this.agentName);
+        const key = actionName.trim() || '<empty_action_name>';
+        metrics.actionInvocations[key] = (metrics.actionInvocations[key] ?? 0) + 1;
+        AgentLogStore.touchCurrentRun();
+        AgentLogStore.writeCondensedMetrics();
+    }
+
+    public recordHallucination(): void {
+        const metrics = AgentLogStore.ensureAgentMetrics(this.agentName);
+        metrics.hallucinations += 1;
+        AgentLogStore.touchCurrentRun();
+        AgentLogStore.writeCondensedMetrics();
+    }
+
     public flushSurvivalTimeOnShutdown(): void {
         if (!this.isAgentAlive()) {
             return;
@@ -109,6 +175,10 @@ export class AgentLogStore {
 
     private static getGenerationsFilePath(): string {
         return getRuntimePath('evolution', 'generations.txt');
+    }
+
+    private static getCondensedMetricsFilePath(): string {
+        return getRuntimePath('evolution', 'condensedMetrics.txt');
     }
 
     private writeRecords(): void {
@@ -173,11 +243,123 @@ export class AgentLogStore {
         fs.writeFileSync(filePath, nextContent, 'utf8');
     }
 
+    private static readCondensedMetrics(filePath: string): CondensedMetricsFile | null {
+        try {
+            const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')) as Partial<CondensedMetricsFile>;
+            if (!parsed || typeof parsed !== 'object') {
+                return null;
+            }
+
+            if (typeof parsed.generationLineStartedAt !== 'string' || !Array.isArray(parsed.runs)) {
+                return null;
+            }
+
+            const sanitizedRuns: GenerationRunMetrics[] = parsed.runs
+                .map((run) => {
+                    if (!run || typeof run !== 'object') {
+                        return null;
+                    }
+
+                    const candidate = run as Partial<GenerationRunMetrics>;
+                    if (typeof candidate.runStartedAt !== 'string' || typeof candidate.lastUpdatedAt !== 'string') {
+                        return null;
+                    }
+
+                    const rawAgents = candidate.agents;
+                    if (!rawAgents || typeof rawAgents !== 'object') {
+                        return null;
+                    }
+
+                    const agents: Record<string, AgentCondensedMetrics> = {};
+                    for (const [agentName, value] of Object.entries(rawAgents as Record<string, unknown>)) {
+                        if (!value || typeof value !== 'object') {
+                            continue;
+                        }
+
+                        const metricsValue = value as Partial<AgentCondensedMetrics>;
+                        const actionInvocations = metricsValue.actionInvocations;
+                        const hallucinations = metricsValue.hallucinations;
+
+                        if (!actionInvocations || typeof actionInvocations !== 'object' || typeof hallucinations !== 'number') {
+                            continue;
+                        }
+
+                        const normalizedActionInvocations: Record<string, number> = {};
+                        for (const [actionName, count] of Object.entries(actionInvocations as Record<string, unknown>)) {
+                            if (typeof count === 'number' && Number.isFinite(count) && count >= 0) {
+                                normalizedActionInvocations[actionName] = Math.floor(count);
+                            }
+                        }
+
+                        agents[agentName] = {
+                            actionInvocations: normalizedActionInvocations,
+                            hallucinations: Math.max(0, Math.floor(hallucinations))
+                        };
+                    }
+
+                    return {
+                        runStartedAt: candidate.runStartedAt,
+                        lastUpdatedAt: candidate.lastUpdatedAt,
+                        agents
+                    };
+                })
+                .filter((run): run is GenerationRunMetrics => run !== null);
+
+            return {
+                generationLineStartedAt: parsed.generationLineStartedAt,
+                runs: sanitizedRuns
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    private static getCurrentRun(): GenerationRunMetrics {
+        if (!AgentLogStore.condensedMetrics || AgentLogStore.condensedRunIndex < 0) {
+            AgentLogStore.initializeCondensedMetrics(true);
+        }
+
+        const metrics = AgentLogStore.condensedMetrics as CondensedMetricsFile;
+        return metrics.runs[AgentLogStore.condensedRunIndex];
+    }
+
+    private static ensureAgentMetrics(agentName: string): AgentCondensedMetrics {
+        const currentRun = AgentLogStore.getCurrentRun();
+        if (!currentRun.agents[agentName]) {
+            currentRun.agents[agentName] = {
+                actionInvocations: {},
+                hallucinations: 0
+            };
+            AgentLogStore.touchCurrentRun();
+            AgentLogStore.writeCondensedMetrics();
+        }
+
+        return currentRun.agents[agentName];
+    }
+
+    private static touchCurrentRun(): void {
+        const currentRun = AgentLogStore.getCurrentRun();
+        currentRun.lastUpdatedAt = new Date().toISOString();
+    }
+
+    private static writeCondensedMetrics(): void {
+        const metrics = AgentLogStore.condensedMetrics;
+        if (!metrics) {
+            return;
+        }
+
+        const filePath = AgentLogStore.getCondensedMetricsFilePath();
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.writeFileSync(filePath, `${JSON.stringify(metrics, null, 2)}\n`, 'utf8');
+    }
+
     private static handleSignal = (signal: NodeJS.Signals): void => {
         for (const store of AgentLogStore.stores) {
             store.flushSurvivalTimeOnShutdown();
         }
 
+        AgentLogStore.touchCurrentRun();
+        AgentLogStore.writeCondensedMetrics();
         AgentLogStore.appendGenerationSummary();
 
         process.removeListener(signal, AgentLogStore.handleSignal);
