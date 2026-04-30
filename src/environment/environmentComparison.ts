@@ -22,8 +22,6 @@ export function compareEnvironmentSnapshots(
 			removedTitle: "The following hostile mobs are no longer a threat:",
 			detectedTitleSingle: "A new hostile mob is approaching:",
 			detectedTitleMultiple: "Multiple new hostile mobs are approaching:",
-			movedCloserTitle: "Hostile mobs are getting closer:",
-			immediateRangeTitle: "Hostile mobs are now in immediate range:",
 			formatThreatName: (threat) => `${threat.name} id ${threat.id}`,
 		},
 		closeThreatThreshold,
@@ -38,8 +36,6 @@ export function compareEnvironmentSnapshots(
 			removedTitle: "Nearby TNT is no longer a threat:",
 			detectedTitleSingle: "New TNT is nearby:",
 			detectedTitleMultiple: "Multiple TNT blocks are nearby:",
-			movedCloserTitle: "TNT is getting closer:",
-			immediateRangeTitle: "TNT is now in immediate range:",
 			formatThreatName: (threat) =>
 				`TNT at ${threat.position.x}, ${threat.position.y}, ${threat.position.z}`,
 		},
@@ -47,7 +43,7 @@ export function compareEnvironmentSnapshots(
 		significantDistanceDelta,
 	)
 
-	if (current.health < previous.health || current.health < 8) {
+	if (current.health < previous.health - 4) {
 		const healthLoss = previous.health - current.health
 		steps.push({
 			title:
@@ -57,7 +53,10 @@ export function compareEnvironmentSnapshots(
 			details: [
 				`- Health changed from ${previous.health.toFixed(1)} to ${current.health.toFixed(1)} (${healthLoss.toFixed(1)} lost)`,
 			],
-			shouldTriggerPrompt: true,
+			shouldTriggerPrompt:
+				current.health <= criticalHealthThreshold
+					? true
+					: false,
 		})
 	}
 
@@ -116,8 +115,6 @@ function addThreatSteps(
 		removedTitle: string
 		detectedTitleSingle: string
 		detectedTitleMultiple: string
-		movedCloserTitle: string
-		immediateRangeTitle: string
 		formatThreatName: (threat: SnapshotEntity) => string
 	},
 	closeThreatThreshold: number,
@@ -150,15 +147,6 @@ function addThreatSteps(
 		]
 	})
 
-	const newCloseThreats = currentThreats.filter((threat) => {
-		if (threat.distance > closeThreatThreshold) {
-			return false
-		}
-
-		const previousThreat = previousThreatMap.get(threat.id)
-		return !previousThreat || previousThreat.distance > closeThreatThreshold
-	})
-
 	if (removedThreats.length > 0) {
 		steps.push({
 			title: labels.removedTitle,
@@ -180,25 +168,6 @@ function addThreatSteps(
 					`- ${labels.formatThreatName(threat)} is ${threat.distance.toFixed(1)} blocks away`,
 			),
 			shouldTriggerPrompt: true,
-		})
-	}
-
-	if (movedCloserThreats.length > 0) {
-		steps.push({
-			title: labels.movedCloserTitle,
-			details: movedCloserThreats,
-			shouldTriggerPrompt: false,
-		})
-	}
-
-	if (newCloseThreats.length > 0) {
-		steps.push({
-			title: labels.immediateRangeTitle,
-			details: newCloseThreats.map(
-				(threat) =>
-					`- ${labels.formatThreatName(threat)} is ${threat.distance.toFixed(1)} blocks away`,
-			),
-			shouldTriggerPrompt: false,
 		})
 	}
 }
