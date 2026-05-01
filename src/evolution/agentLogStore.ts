@@ -8,6 +8,7 @@ export interface AgentLogRecord {
     startedAt: string;
     lastUpdatedAt: string;
     survivedMs: number;
+    causeOfDeath: string | null;
     messages: LlmMessage[];
 }
 
@@ -68,6 +69,7 @@ export class AgentLogStore {
             startedAt,
             lastUpdatedAt: startedAt,
             survivedMs: 0,
+            causeOfDeath: null,
             messages: []
         };
         this.verboseRecord = {
@@ -141,6 +143,13 @@ export class AgentLogStore {
     public appendLlmCall(call: LlmCallLog): void {
         this.verboseRecord.llmCalls.push(this.cloneForLog(call));
         this.writeVerboseRecord();
+    }
+
+    public recordCauseOfDeath(causeOfDeath: string): void {
+        const normalizedCauseOfDeath = causeOfDeath.trim();
+        this.conciseRecord.causeOfDeath = normalizedCauseOfDeath || null;
+        this.verboseRecord.causeOfDeath = normalizedCauseOfDeath || null;
+        this.writeRecords();
     }
 
     public recordActionInvocation(actionName: string): void {

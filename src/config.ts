@@ -66,5 +66,5 @@ export const config = {
   jarName: 'server.jar',
   minRam: '4G',
   maxRam: '4G',
-  admins: ['MarcusVange', 'Carlzoe'],
+  admins: ['MarcusVange', 'carlzoe'],
 };

@@ -101,6 +101,10 @@ export class AIController {
         await this.generateResponse();
     }
 
+    public recordCauseOfDeath(causeOfDeath: string): void {
+        this.log.recordCauseOfDeath(causeOfDeath);
+    }
+
     private async generateResponse() {
         try {
             this.agent.stopActivity();
