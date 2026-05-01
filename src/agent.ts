@@ -15,6 +15,7 @@ export class Agent {
     public readonly username: string;
     private environment: Environment;
     private previousEnvironmentSnapshot: EnvironmentSnapshot | null = null;
+    private causeOfDeath: string | null = null;
     public server: MinecraftServer;
     private scenario: Scenario;
     public isFrozen: boolean;
@@ -44,14 +45,22 @@ export class Agent {
     }
 
     private initializeEvents(): void {
+        this.bot._client.on('death_combat_event', (packet: { message?: unknown }) => {
+            this.causeOfDeath = this.formatCauseOfDeath(packet.message ?? null);
+        });
+
         this.bot.on('spawn', () => {
             this.isAlive = true;
+            this.causeOfDeath = null;
             this.previousEnvironmentSnapshot = this.observeEnvironment();
             this.scenario.onAgentSpawn(this);
         });
 
         this.bot.on('death', () => {
             this.isAlive = false;
+            if (this.causeOfDeath) {
+                this.ai.recordCauseOfDeath(this.causeOfDeath);
+            }
             this.stopActivity();
             this.bot.quit();
             console.log(this.bot.username + " died and left the game.");
@@ -68,6 +77,25 @@ export class Agent {
             this.isAlive = false;
             this.stopActivity();
         });
+    }
+
+    private formatCauseOfDeath(message: unknown): string | null {
+        if (!message) {
+            return null;
+        }
+
+        try {
+            const ChatMessage = require('prismarine-chat')(this.bot.registry);
+            const text = ChatMessage.fromNotch(message).toString().trim();
+            return text.length > 0 ? text : null;
+        } catch {
+            if (typeof message === 'string') {
+                const text = message.trim();
+                return text.length > 0 ? text : null;
+            }
+
+            return null;
+        }
     }
 
     public observeEnvironment() {
