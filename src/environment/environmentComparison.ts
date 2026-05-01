@@ -61,8 +61,8 @@ export function compareEnvironmentSnapshots(
 	}
 
 	const inventoryDiff = diffInventory(
-		[...previous.inventory.items, ...previous.inventory.equipped],
-		[...current.inventory.items, ...current.inventory.equipped],
+		[...previous.inventory.items, ...previous.inventory.equipped.filter((item) => item.destination !== "hand",),],
+		[...current.inventory.items, ...current.inventory.equipped.filter((item) => item.destination !== "hand",),],
 	)
 	if (inventoryDiff.pickedUp.length > 0) {
 		steps.push({
