@@ -4,11 +4,15 @@ const path = require('path');
 
 const rootDirectory = path.resolve(__dirname, '..');
 const generationCount = Number(process.argv[2]);
-const scenarioName = process.argv.slice(3).join(' ').trim();
+const shouldContinueGenerationLine = process.argv.includes('--continue');
+const scenarioName = process.argv.slice(3)
+    .filter((arg) => arg !== '--continue')
+    .join(' ')
+    .trim();
 
 if (!Number.isInteger(generationCount) || generationCount < 1 || !scenarioName) {
-    console.error('Usage: node scripts/runGenerations.cjs <generation-count> <scenario-name>');
-    console.error('Example: node scripts/runGenerations.cjs 5 ZombieOnSpawnScenario');
+    console.error('Usage: node scripts/runGenerations.cjs <generation-count> <scenario-name> [--continue]');
+    console.error('Example: node scripts/runGenerations.cjs 5 ZombieOnSpawnScenario --continue');
     process.exit(1);
 }
 
@@ -36,7 +40,7 @@ async function main() {
                 path.join(rootDirectory, 'src', 'index.ts')
             ], {
                 AUTO_SCENARIO: selectedScenarioName,
-                AUTO_CONTINUE_GENERATION_LINE: index === 1 ? 'false' : 'true',
+                AUTO_CONTINUE_GENERATION_LINE: shouldContinueGenerationLine || index > 1 ? 'true' : 'false',
                 AUTO_STOP_WHEN_AGENTS_DEAD: 'true',
                 AUTO_RUN_COMPLETE_MARKER: completionMarkerPath
             }, completionMarkerPath);
