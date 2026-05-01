@@ -47,7 +47,9 @@ async function main() {
         console.log(`[AutoRun] Saving generation ${index}/${generationCount}`);
         await runCommand(process.execPath, [
             path.join(rootDirectory, 'scripts', 'saveRunData.cjs')
-        ]);
+        ], {
+            RUN_SCENARIO: selectedScenarioName
+        });
     }
 
     console.log(`\n[AutoRun] Finished ${generationCount} generation(s).`);

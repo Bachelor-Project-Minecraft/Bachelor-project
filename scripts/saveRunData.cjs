@@ -62,6 +62,8 @@ function ensureMetadataFile() {
         formatModelLine('skillModel', config.llm.action),
         formatModelLine('summaryModel', config.llm.summary),
         formatModelLine('cultureModel', config.llm.culture),
+        '',
+        `Scenario: ${process.env.RUN_SCENARIO ?? 'unspecified'}`,
         ''
     ].join('\n');
 

@@ -37,6 +37,7 @@ export class AgentLogStore {
     private static condensedMetrics: CondensedMetricsFile | null = null;
     private static condensedRunIndex = -1;
     private static condensedMetricsDirty = false;
+    private static generationFinalized = false;
 
     private readonly startedAtMs: number;
     private readonly startedFrozenMs: number;
@@ -234,6 +235,24 @@ export class AgentLogStore {
         process.on('SIGTERM', AgentLogStore.handleSignal);
     }
 
+    public static finalizeGeneration(): void {
+        if (AgentLogStore.generationFinalized) {
+            return;
+        }
+
+        AgentLogStore.generationFinalized = true;
+
+        for (const store of AgentLogStore.stores) {
+            store.flushSurvivalTimeOnShutdown();
+        }
+
+        AgentLogStore.touchCurrentRun();
+        if (AgentLogStore.condensedMetricsDirty) {
+            AgentLogStore.writeCondensedMetrics();
+        }
+        AgentLogStore.appendGenerationSummary();
+    }
+
     private static appendGenerationSummary(): void {
         const filePath = AgentLogStore.getGenerationsFilePath();
         const line = Array.from(AgentLogStore.stores)
@@ -360,15 +379,7 @@ export class AgentLogStore {
     }
 
     private static handleSignal = (signal: NodeJS.Signals): void => {
-        for (const store of AgentLogStore.stores) {
-            store.flushSurvivalTimeOnShutdown();
-        }
-
-        AgentLogStore.touchCurrentRun();
-        if (AgentLogStore.condensedMetricsDirty) {
-            AgentLogStore.writeCondensedMetrics();
-        }
-        AgentLogStore.appendGenerationSummary();
+        AgentLogStore.finalizeGeneration();
 
         process.removeListener(signal, AgentLogStore.handleSignal);
         process.kill(process.pid, signal);

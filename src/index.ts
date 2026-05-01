@@ -89,8 +89,9 @@ function stopWhenAllAgentsAreDead(server: MinecraftServer, agents: Agent[]): voi
         server.stop();
 
         setTimeout(() => {
+            AgentLogStore.finalizeGeneration();
             writeAutoRunCompletionMarker();
-            process.kill(process.pid, 'SIGINT');
+            process.exit(0);
         }, 5000);
     }, 1000);
 }
