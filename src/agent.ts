@@ -19,6 +19,7 @@ export class Agent {
     private scenario: Scenario;
     public isFrozen: boolean;
     public isAlive: boolean;
+    public hasSpawned: boolean;
 
     constructor(server: MinecraftServer, username: string, scenario: Scenario) {
         this.username = username;
@@ -38,6 +39,7 @@ export class Agent {
         this.scenario = scenario;
         this.server.registerAgent(this);
         this.ai = new AIController(this, username);
+        this.hasSpawned = false;
 
         this.initializeEvents();
         this.startSensors();
@@ -46,6 +48,7 @@ export class Agent {
     private initializeEvents(): void {
         this.bot.on('spawn', () => {
             this.isAlive = true;
+            this.hasSpawned = true;
             this.previousEnvironmentSnapshot = this.observeEnvironment();
             this.scenario.onAgentSpawn(this);
         });

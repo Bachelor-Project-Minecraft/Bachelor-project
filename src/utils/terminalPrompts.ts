@@ -6,6 +6,17 @@ type PromptOption<T> = {
     value: T;
 };
 
+function getEnvValue(...names: string[]): string | undefined {
+    for (const name of names) {
+        const value = process.env[name]?.trim();
+        if (value) {
+            return value;
+        }
+    }
+
+    return undefined;
+}
+
 async function promptToSelectOption<T>(
     title: string,
     subtitle: string,
@@ -122,6 +133,11 @@ async function promptToSelectOption<T>(
 }
 
 export async function promptToContinueCurrentGenerationLine(): Promise<boolean> {
+    const value = getEnvValue('AUTO_CONTINUE_GENERATION_LINE');
+    if (value) {
+        return ['1', 'true', 'yes', 'y', 'continue'].includes(value.toLowerCase());
+    }
+
     return promptToSelectOption(
         'Continue generation line?',
         'Resume the current run or start a fresh generation line.',
@@ -145,6 +161,21 @@ export async function promptToSelectScenario<T extends { name: string; descripti
 ): Promise<T> {
     if (scenarios.length === 0) {
         throw new Error('No scenarios are available to select.');
+    }
+
+    const scenarioName = getEnvValue('AUTO_SCENARIO');
+    if (scenarioName) {
+        const selectedScenario = scenarios.find(
+            (scenario) => scenario.name.toLowerCase() === scenarioName.toLowerCase()
+        );
+
+        if (!selectedScenario) {
+            throw new Error(
+                `Unknown scenario "${scenarioName}". Available scenarios: ${scenarios.map((scenario) => scenario.name).join(', ')}.`
+            );
+        }
+
+        return selectedScenario;
     }
 
     return promptToSelectOption(
