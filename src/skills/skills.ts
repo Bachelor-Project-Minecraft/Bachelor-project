@@ -11,7 +11,7 @@ export const SendMessageSkill: Skill = {
     description: 'Group A. Send a private message to one or more players. Use this only for survival-relevant coordination.',
     parameters: z.object({
         message: z.string().describe('The message to send'),
-        receivers: z.array(z.string()).min(1).describe('The exact Minecraft usernames to message (must be valid and non-empty)')
+        receivers: z.array(z.string()).describe('The exact Minecraft usernames to message')
     }),
     execute: async (bot, args) => {
         const message =
