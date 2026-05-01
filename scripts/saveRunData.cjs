@@ -6,6 +6,10 @@ const runDataDirectory = process.env.RUN_DATA_DIRECTORY
     ? path.resolve(rootDirectory, process.env.RUN_DATA_DIRECTORY)
     : path.join(rootDirectory, 'RunData');
 const metadataPath = path.join(runDataDirectory, 'metadata.txt');
+const chosenScenarioPaths = [
+    path.join(rootDirectory, 'src', 'scenarios', 'chosenScenario.txt'),
+    path.join(rootDirectory, 'dist', 'scenarios', 'chosenScenario.txt')
+];
 
 const artifacts = [
     { relativePath: path.join('evolution', 'logs'), destinationName: 'logs' },
@@ -63,11 +67,25 @@ function ensureMetadataFile() {
         formatModelLine('summaryModel', config.llm.summary),
         formatModelLine('cultureModel', config.llm.culture),
         '',
-        `Scenario: ${process.env.RUN_SCENARIO ?? 'unspecified'}`,
+        `Scenario: ${getSelectedScenarioName()}`,
         ''
     ].join('\n');
 
     fs.writeFileSync(metadataPath, content, 'utf8');
+}
+
+function getSelectedScenarioName() {
+    if (process.env.RUN_SCENARIO) {
+        return process.env.RUN_SCENARIO;
+    }
+
+    for (const scenarioPath of chosenScenarioPaths) {
+        if (fs.existsSync(scenarioPath)) {
+            return fs.readFileSync(scenarioPath, 'utf8').trim() || 'unspecified';
+        }
+    }
+
+    return 'unspecified';
 }
 
 function loadConfig() {
