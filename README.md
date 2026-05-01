@@ -16,3 +16,21 @@ Call npm run dev
 This will boot up the minecraft server and connect a bot.
 
 The first time, the program is lauched, the server will generate a eula.txt file. This must be set to TRUE, before running the application.
+
+## Automated generation runs:
+
+To run one generation line for a fixed number of generations:
+
+```sh
+npm run gen -- 5 easyScenario
+```
+
+This starts a fresh generation line, runs the selected scenario for 5 generations, stops each generation when all agents are dead, and saves each generation to `RunData`.
+
+To run multiple generation lines from `genLoopInfo.json`:
+
+```sh
+npm run genloop -- 5
+```
+
+This reads each entry in `genLoopInfo.json`, uses its models and scenario for one generation line, runs 5 generations for that line, and saves the results under folders such as `RunData/generationLine1` and `RunData/generationLine2`.
