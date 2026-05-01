@@ -279,8 +279,7 @@ export const MoveToCoordinateSkill: Skill = {
         position: z.object({
             x: z.number().describe('Target x coordinate'),
             z: z.number().describe('Target z coordinate')
-        }).describe('The destination coordinates to move to'),
-        radius: z.number().min(0).max(4).optional().describe('How close is close enough to the destination (default: 1)')
+        }).describe('The destination coordinates to move to')
     }),
     execute: async (bot, args) => {
         const targetPosition = new Vec3(
@@ -288,7 +287,7 @@ export const MoveToCoordinateSkill: Skill = {
             0,
             Math.floor(args.position.z)
         );
-        const radius = typeof args.radius === 'number' ? Math.max(0, Math.min(4, args.radius)) : 1;
+        const radius = 1;
 
         startBackgroundSkill(bot, 'move_to_coordinate', async (token) => {
             const movements = new Movements(bot);
