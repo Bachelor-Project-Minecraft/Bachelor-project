@@ -1,8 +1,11 @@
 import { LlmModelConfig } from "./types";
+import { loadAutoLlmModels } from "./utils/util";
+
+const autoLlmModels = loadAutoLlmModels();
 
 const chatModel: LlmModelConfig = {
   provider: 'ollama',
-  model: 'qwen3.5:9b',
+  model: 'qwen3.5:4b',
   reasoning: {
     effort: 'low' // This is just a default and can be changed when calling the llm
   }
@@ -47,10 +50,10 @@ export const config = {
     persistSkillMinUseCount: 2
   },
   llm: {
-    chat: chatModel,
-    action: skillModel,
-    culture: cultureModel,
-    summary: summaryModel,
+    chat: autoLlmModels.chat ?? chatModel,
+    action: autoLlmModels.skill ?? skillModel,
+    culture: autoLlmModels.culture ?? cultureModel,
+    summary: autoLlmModels.summary ?? summaryModel,
     ollama: {
       baseUrl: 'http://127.0.0.1:11434',
       // Keep Ollama models loaded after requests to avoid cold-load timeout spikes.

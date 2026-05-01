@@ -36,6 +36,13 @@ export interface LlmModelConfig {
     reasoning?: LlmReasoningConfig;
 }
 
+export interface AutoLlmModels {
+    chat?: LlmModelConfig;
+    skill?: LlmModelConfig;
+    culture?: LlmModelConfig;
+    summary?: LlmModelConfig;
+}
+
 export interface LlmToolDefinition {
     type: "function";
     function: {

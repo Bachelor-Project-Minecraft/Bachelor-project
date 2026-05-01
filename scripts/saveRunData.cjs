@@ -2,7 +2,9 @@ const fs = require('fs');
 const path = require('path');
 
 const rootDirectory = path.resolve(__dirname, '..');
-const runDataDirectory = path.join(rootDirectory, 'RunData');
+const runDataDirectory = process.env.RUN_DATA_DIRECTORY
+    ? path.resolve(rootDirectory, process.env.RUN_DATA_DIRECTORY)
+    : path.join(rootDirectory, 'RunData');
 const metadataPath = path.join(runDataDirectory, 'metadata.txt');
 
 const artifacts = [
