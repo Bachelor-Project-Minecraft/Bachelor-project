@@ -8,7 +8,15 @@ import { config } from "../config";
 import { LLMClient } from "../llmClient";
 import { GeneratedSkillDefinition, Skill } from "../types";
 import { getActionGenerationPrompt } from "../utils/prompts";
-import { getRuntimePath } from "../utils/util";
+import {
+    formatValidationIssues,
+    getRuntimePath,
+    isStoredAction,
+    normalizeActionName,
+    normalizeText,
+    stringifyError,
+    stringifyJson
+} from "../utils/util";
 import { startBackgroundSkill } from "./backgroundSkillRunner";
 import type { ActionExecutor, PreparedAction, RegisterGeneratedSkill, RunWhileWorldFrozen, StoredAction, UseActionInput } from "./types";
 import {
@@ -16,12 +24,7 @@ import {
     compileParameters,
     failValidation,
     GeneratedSkillDefinitionResponseFormat,
-    isStoredAction,
-    normalizeActionName,
-    normalizeText,
     parseGeneratedSkillDefinition,
-    stringifyError,
-    stringifyJson
 } from "./util";
 
 export class GeneratedActionService {
@@ -170,9 +173,7 @@ export class GeneratedActionService {
 
         const parsedExecutionArgs = compiledParameters.safeParse(generatedDefinition.executionArgs);
         if (!parsedExecutionArgs.success) {
-            const error = parsedExecutionArgs.error.issues
-                .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
-                .join(' | ');
+            const error = formatValidationIssues(parsedExecutionArgs.error.issues);
             console.warn(`Generated action "${input.name}" rejected its executionArgs on attempt ${attempt}: ${error}`);
             failValidation('executionArgs', error, generatedDefinition);
         }

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { LlmCallLog, LlmMessage } from '../types';
-import { getRuntimePath } from '../utils/util';
+import { cloneJson, getRuntimePath } from '../utils/util';
 
 export interface AgentLogRecord {
     agentName: string;
@@ -136,12 +136,12 @@ export class AgentLogStore {
         }
 
         this.conciseRecord.messages.push(this.toConciseMessage(message));
-        this.verboseRecord.messages.push(this.cloneForLog(message));
+        this.verboseRecord.messages.push(cloneJson(message));
         this.writeRecords();
     }
 
     public appendLlmCall(call: LlmCallLog): void {
-        this.verboseRecord.llmCalls.push(this.cloneForLog(call));
+        this.verboseRecord.llmCalls.push(cloneJson(call));
         this.writeVerboseRecord();
     }
 
@@ -223,12 +223,8 @@ export class AgentLogStore {
         record.survivedMs = Math.max(0, elapsedMs - frozenSinceStartMs);
     }
 
-    private cloneForLog<T>(value: T): T {
-        return JSON.parse(JSON.stringify(value)) as T;
-    }
-
     private toConciseMessage(message: LlmMessage): LlmMessage {
-        const clonedMessage = this.cloneForLog(message);
+        const clonedMessage = cloneJson(message);
         delete clonedMessage.thinking;
         return clonedMessage;
     }

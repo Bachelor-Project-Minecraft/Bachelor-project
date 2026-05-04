@@ -2,6 +2,13 @@ import { JsonValue, JsonValueSchema, Skill, ToolSchema } from "../types";
 import { z } from "zod";
 import { GeneratedActionService } from "./generatedActionService";
 import { startBackgroundSkill } from "./backgroundSkillRunner";
+import {
+    canContinueBotAction,
+    findInventoryItemByName,
+    normalizeMinecraftItemName,
+    waitForActiveMs,
+    waitUntilWorldActive
+} from "../utils/util";
 
 import { Vec3 } from "vec3";
 import { Movements, goals } from "mineflayer-pathfinder";
@@ -114,7 +121,6 @@ export const BowAttackSkill: Skill = {
         const cooldownMs = 350;
         const freezePollMs = 50;
         const arrowNames = new Set(['arrow', 'spectral_arrow', 'tipped_arrow']);
-        const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
         const getArrowCount = () => bot.inventory
             .items()
@@ -150,55 +156,13 @@ export const BowAttackSkill: Skill = {
         bot.pvp.stop();
 
         startBackgroundSkill(bot, 'bow_attack', async (token) => {
-            const isBotAlive = () => bot.health > 0 && Boolean(bot.entity);
-            const canContinue = () => !token.cancelled && isBotAlive();
-
-            const waitUntilWorldActive = async () => {
-                while (!bot.physicsEnabled) {
-                    if (!canContinue()) {
-                        return false;
-                    }
-
-                    await sleep(freezePollMs);
-                }
-
-                return canContinue();
-            };
-
-            const waitForActiveMs = async (activeMs: number) => {
-                let remaining = activeMs;
-
-                while (remaining > 0) {
-                    if (!await waitUntilWorldActive()) {
-                        return false;
-                    }
-
-                    const chunk = Math.min(remaining, freezePollMs);
-                    const chunkStart = Date.now();
-                    await sleep(chunk);
-
-                    if (!canContinue()) {
-                        return false;
-                    }
-
-                    if (!bot.physicsEnabled) {
-                        continue;
-                    }
-
-                    const chunkElapsed = Math.max(0, Date.now() - chunkStart);
-                    remaining -= Math.min(chunkElapsed, chunk);
-                }
-
-                return true;
-            };
-
             const stopUsingBow = async () => {
                 if (token.cancelled) {
                     bot.deactivateItem();
                     return;
                 }
 
-                if (await waitUntilWorldActive()) {
+                if (await waitUntilWorldActive(bot, token, freezePollMs)) {
                     bot.deactivateItem();
                 }
             };
@@ -214,7 +178,7 @@ export const BowAttackSkill: Skill = {
             let shotsFired = 0;
 
             while (engagementElapsedMs < maxEngagementMs) {
-                if (!canContinue()) {
+                if (!canContinueBotAction(bot, token)) {
                     console.log(`Stopped bow attack against ${targetEnemyId} because it was cancelled or the bot is no longer alive.`);
                     return;
                 }
@@ -234,20 +198,20 @@ export const BowAttackSkill: Skill = {
                 }
 
                 const aimPosition = target.position.offset(0, Math.max(0.6, (target.height ?? 1.8) * 0.75), 0);
-                if (!await waitUntilWorldActive()) {
+                if (!await waitUntilWorldActive(bot, token, freezePollMs)) {
                     console.log(`Stopped bow attack against ${targetEnemyId} before aiming.`);
                     return;
                 }
 
                 await bot.lookAt(aimPosition, true);
 
-                if (!await waitUntilWorldActive()) {
+                if (!await waitUntilWorldActive(bot, token, freezePollMs)) {
                     console.log(`Stopped bow attack against ${targetEnemyId} before drawing.`);
                     return;
                 }
 
                 bot.activateItem();
-                if (!await waitForActiveMs(holdDrawMs)) {
+                if (!await waitForActiveMs(bot, token, holdDrawMs, freezePollMs)) {
                     await stopUsingBow();
                     console.log(`Stopped bow attack against ${targetEnemyId} while drawing.`);
                     return;
@@ -256,7 +220,7 @@ export const BowAttackSkill: Skill = {
                 await stopUsingBow();
                 shotsFired += 1;
 
-                if (!await waitForActiveMs(cooldownMs)) {
+                if (!await waitForActiveMs(bot, token, cooldownMs, freezePollMs)) {
                     console.log(`Stopped bow attack against ${targetEnemyId} during cooldown.`);
                     return;
                 }
@@ -316,21 +280,8 @@ export const EquipItemInHandSkill: Skill = {
         itemName: z.string().min(1).describe('The inventory item to hold, for example iron_sword or st')
     }),
     execute: async (bot, args) => {
-        const normalizeItemName = (value: string) => value
-            .trim()
-            .toLowerCase()
-            .replace(/^minecraft:/, '')
-            .replace(/\s+/g, '_');
-
-        const requestedName = normalizeItemName(args.itemName);
         const inventoryItems = bot.inventory.items();
-
-        const selectedItem = inventoryItems.find((item) => {
-            const byName = normalizeItemName(item.name) === requestedName;
-            const byDisplayName = typeof item.displayName === 'string'
-                && normalizeItemName(item.displayName) === requestedName;
-            return byName || byDisplayName;
-        });
+        const selectedItem = findInventoryItemByName(inventoryItems, args.itemName);
 
         if (!selectedItem) {
             return `<NO ITEM>: Could not find ${args.itemName} in inventory.`;
@@ -348,28 +299,15 @@ export const EquipGearSkill: Skill = {
         itemName: z.string().min(1).describe('The gear item to wear, for example leather_chestplate')
     }),
     execute: async (bot, args) => {
-        const normalizeItemName = (value: string) => value
-            .trim()
-            .toLowerCase()
-            .replace(/^minecraft:/, '')
-            .replace(/\s+/g, '_');
-
-        const requestedName = normalizeItemName(args.itemName);
         const inventoryItems = bot.inventory.items();
-
-        const selectedItem = inventoryItems.find((item) => {
-            const byName = normalizeItemName(item.name) === requestedName;
-            const byDisplayName = typeof item.displayName === 'string'
-                && normalizeItemName(item.displayName) === requestedName;
-            return byName || byDisplayName;
-        });
+        const selectedItem = findInventoryItemByName(inventoryItems, args.itemName);
 
         if (!selectedItem) {
             console.log("agent hallucinated and tried to equip item that didn't exist");
             return `<NO ITEM>: Could not find ${args.itemName} in inventory.`;
         }
 
-        const normalizedSelectedName = normalizeItemName(selectedItem.name);
+        const normalizedSelectedName = normalizeMinecraftItemName(selectedItem.name);
         let destination: 'head' | 'torso' | 'legs' | 'feet' | null = null;
 
         if (normalizedSelectedName.includes('helmet')) {
@@ -400,7 +338,6 @@ export const EatBreadUntilFullSkill: Skill = {
         const consumeMs = 1700;
         const settleMs = 120;
         const freezePollMs = 50;
-        const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
         const findBread = () => bot.inventory.items().find((item) => item.name === 'bread');
 
@@ -415,52 +352,10 @@ export const EatBreadUntilFullSkill: Skill = {
         }
 
         startBackgroundSkill(bot, 'eat_bread_until_full', async (token) => {
-            const isBotAlive = () => bot.health > 0 && Boolean(bot.entity);
-            const canContinue = () => !token.cancelled && isBotAlive();
-
-            const waitUntilWorldActive = async () => {
-                while (!bot.physicsEnabled) {
-                    if (!canContinue()) {
-                        return false;
-                    }
-
-                    await sleep(freezePollMs);
-                }
-
-                return canContinue();
-            };
-
-            const waitForActiveMs = async (activeMs: number) => {
-                let remaining = activeMs;
-
-                while (remaining > 0) {
-                    if (!await waitUntilWorldActive()) {
-                        return false;
-                    }
-
-                    const chunk = Math.min(remaining, freezePollMs);
-                    const chunkStart = Date.now();
-                    await sleep(chunk);
-
-                    if (!canContinue()) {
-                        return false;
-                    }
-
-                    if (!bot.physicsEnabled) {
-                        continue;
-                    }
-
-                    const chunkElapsed = Math.max(0, Date.now() - chunkStart);
-                    remaining -= Math.min(chunkElapsed, chunk);
-                }
-
-                return true;
-            };
-
             let breadEaten = 0;
 
             while ((bot.food ?? 0) < maxFood) {
-                if (!canContinue()) {
+                if (!canContinueBotAction(bot, token)) {
                     bot.deactivateItem();
                     console.log(`Stopped eating bread because it was cancelled or the bot is no longer alive.`);
                     return;
@@ -474,27 +369,27 @@ export const EatBreadUntilFullSkill: Skill = {
                 }
 
                 await bot.equip(bread, 'hand');
-                if (!await waitUntilWorldActive()) {
+                if (!await waitUntilWorldActive(bot, token, freezePollMs)) {
                     bot.deactivateItem();
                     console.log(`Stopped eating bread before consuming.`);
                     return;
                 }
 
                 bot.activateItem();
-                if (!await waitForActiveMs(consumeMs)) {
+                if (!await waitForActiveMs(bot, token, consumeMs, freezePollMs)) {
                     bot.deactivateItem();
                     console.log(`Stopped eating bread while consuming.`);
                     return;
                 }
 
-                if (!await waitUntilWorldActive()) {
+                if (!await waitUntilWorldActive(bot, token, freezePollMs)) {
                     bot.deactivateItem();
                     console.log(`Stopped eating bread before settling.`);
                     return;
                 }
 
                 bot.deactivateItem();
-                if (!await waitForActiveMs(settleMs)) {
+                if (!await waitForActiveMs(bot, token, settleMs, freezePollMs)) {
                     console.log(`Stopped eating bread while settling.`);
                     return;
                 }

@@ -1,18 +1,26 @@
 import { z } from "zod";
 import { GeneratedSkillDefinition, JsonValueSchema } from "../types";
-import type { ActionExecutor, StoredAction } from "./types";
+import {
+    formatValidationIssues,
+    isStoredAction,
+    normalizeActionName,
+    normalizeText,
+    stringifyError,
+    stringifyJson
+} from "../utils/util";
+import type { ActionExecutor } from "./types";
+
+export {
+    isStoredAction,
+    normalizeActionName,
+    normalizeText,
+    stringifyError,
+    stringifyJson
+};
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
     ...args: string[]
 ) => ActionExecutor;
-
-const StoredActionSchema = z.object({
-    name: z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/),
-    description: z.string().min(1),
-    parameters: z.string().min(1),
-    code: z.string().min(1),
-    count: z.number().int().min(0)
-});
 
 const GeneratedSkillDefinitionSchema = z.object({
     parameters: z.string().min(1),
@@ -73,44 +81,9 @@ export function parseGeneratedSkillDefinition(rawResponse: string): GeneratedSki
 
     failValidation(
         'metadata',
-        result.error.issues
-            .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
-            .join(' | '),
+        formatValidationIssues(result.error.issues),
         parsed
     );
-}
-
-export function isStoredAction(entry: unknown): entry is StoredAction {
-    return StoredActionSchema.safeParse(entry).success;
-}
-
-export function normalizeText(value: string): string {
-    return value.trim().toLowerCase();
-}
-
-export function normalizeActionName(value: string): string {
-    return value
-        .trim()
-        .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-        .replace(/[\s-]+/g, '_')
-        .replace(/_+/g, '_')
-        .toLowerCase();
-}
-
-export function stringifyJson(value: unknown): string {
-    try {
-        return JSON.stringify(value) ?? String(value);
-    } catch {
-        return String(value);
-    }
-}
-
-export function stringifyError(error: unknown): string {
-    if (error instanceof Error) {
-        return error.message;
-    }
-
-    return stringifyJson(error);
 }
 
 export function failValidation(stage: string, error: string, generatedOutput: unknown): never {

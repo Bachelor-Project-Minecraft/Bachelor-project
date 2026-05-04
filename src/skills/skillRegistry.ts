@@ -3,6 +3,7 @@ import { Bot } from "mineflayer";
 import { z } from "zod";
 import { BowAttackSkill, createNewActionSkill, DoNothingSkill, EatBreadUntilFullSkill, EquipGearSkill, EquipItemInHandSkill, MeleeAttackSkill, MoveToCoordinateSkill, SendMessageSkill } from "./skills";
 import { GeneratedActionService } from "./generatedActionService";
+import { normalizeText } from "../utils/util";
 
 export class SkillRegistry {
     private static globalInstance: SkillRegistry | null = null;
@@ -40,7 +41,7 @@ export class SkillRegistry {
     }
 
     public registerGeneratedSkill(skill: Skill): { success: boolean; error?: string } {
-        const normalizedName = this.normalizeName(skill.name);
+        const normalizedName = normalizeText(skill.name);
         if (this.builtInNames.has(normalizedName)) {
             return {
                 success: false,
@@ -78,7 +79,7 @@ export class SkillRegistry {
             return exactMatch;
         }
 
-        const registeredName = this.normalizedNames.get(this.normalizeName(name));
+        const registeredName = this.normalizedNames.get(normalizeText(name));
         return registeredName ? this.skills.get(registeredName) : undefined;
     }
 
@@ -117,12 +118,8 @@ export class SkillRegistry {
     }
     private registerBuiltInSkill(skill: Skill) {
         this.skills.set(skill.name, skill);
-        const normalizedName = this.normalizeName(skill.name);
+        const normalizedName = normalizeText(skill.name);
         this.normalizedNames.set(normalizedName, skill.name);
         this.builtInNames.add(normalizedName);
-    }
-
-    private normalizeName(value: string): string {
-        return value.trim().toLowerCase();
     }
 }

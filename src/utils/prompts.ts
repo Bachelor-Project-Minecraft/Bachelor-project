@@ -1,4 +1,5 @@
 import { JsonValue } from "../types";
+import { stringifyJson } from "./util";
 
 const USE_ACTION_EXAMPLES = `Examples of valid new_action calls:
 1. Create a basic movement action when no movement tool exists yet:
@@ -231,8 +232,6 @@ export const getSummarizeHistoryPrompt = (name: string, oldMemory: string, toSum
         .replace('{TO_SUMMARIZE}', toSummarize);
 };
 
-const stringifyJsonValue = (value: JsonValue): string => JSON.stringify(value, null, 2);
-
 export const getActionGenerationPrompt = (
     name: string,
     description: string,
@@ -242,7 +241,7 @@ export const getActionGenerationPrompt = (
 ) => {
     const argsText = args.length > 0
         ? args
-            .map((arg, index) => `${index}: ${stringifyJsonValue(arg)}`)
+            .map((arg, index) => `${index}: ${stringifyJson(arg, 2)}`)
             .join('\n')
         : 'No args provided.';
     const environmentText = environmentSnapshot || 'No snapshot provided.';

@@ -2,17 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { config } from '../config';
 import { LLMClient } from '../llmClient';
+import type { StoredAction } from '../skills/types';
 import { getKnowledgebaseUpdatePrompt } from '../utils/prompts';
-import { getRuntimePath } from '../utils/util';
+import { getRuntimePath, isStoredAction, normalizeText } from '../utils/util';
 import { AgentLogRecord } from './agentLogStore';
-
-interface StoredAction {
-    name: string;
-    description: string;
-    parameters: string;
-    code: string;
-    count: number;
-}
 
 export class Evolution {
     public static getKnowledgebase(): string {
@@ -64,10 +57,10 @@ export class Evolution {
         try {
             const filePath = Evolution.getGenerationSkillsFilePath();
             const existingSkills = Evolution.getStoredActions(filePath);
-            const existingSkillNames = new Set(existingSkills.map((skill) => Evolution.normalizeText(skill.name)));
+            const existingSkillNames = new Set(existingSkills.map((skill) => normalizeText(skill.name)));
             const newSkills = Evolution.getStoredActions(getRuntimePath('skills', 'generatedSkills.json'))
                 .filter((skill) => skill.count >= config.actions.persistSkillMinUseCount)
-                .filter((skill) => !existingSkillNames.has(Evolution.normalizeText(skill.name)))
+                .filter((skill) => !existingSkillNames.has(normalizeText(skill.name)))
                 .sort((left, right) => right.count - left.count)
                 .slice(0, 2);
             const skills = [...existingSkills, ...newSkills];
@@ -129,34 +122,10 @@ export class Evolution {
                 return [];
             }
 
-            return parsed.filter(Evolution.isStoredAction);
+            return parsed.filter(isStoredAction);
         } catch {
             return [];
         }
-    }
-
-    private static normalizeText(value: string): string {
-        return value.trim().toLowerCase();
-    }
-
-    private static isStoredAction(value: unknown): value is StoredAction {
-        if (!value || typeof value !== 'object') {
-            return false;
-        }
-
-        const action = value as Partial<StoredAction>;
-        const count = action.count;
-        return typeof action.name === 'string'
-            && /^[A-Za-z][A-Za-z0-9_]*$/.test(action.name)
-            && typeof action.description === 'string'
-            && action.description.length > 0
-            && typeof action.parameters === 'string'
-            && action.parameters.length > 0
-            && typeof action.code === 'string'
-            && action.code.length > 0
-            && typeof count === 'number'
-            && Number.isInteger(count)
-            && count >= 0;
     }
 
     private static getStoredLogs(): AgentLogRecord[] {

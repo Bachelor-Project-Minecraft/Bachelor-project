@@ -8,6 +8,12 @@ import { GeneratedActionService } from './skills/generatedActionService';
 import { z } from 'zod';
 import { AgentLogStore } from './evolution/agentLogStore';
 import { Evolution } from './evolution/evolution';
+import {
+    formatValidationIssues,
+    parseJsonOrOriginal,
+    stringifyError,
+    stringifyJson
+} from './utils/util';
 
 type ValidationResult =
     | { success: true; data: unknown }
@@ -179,7 +185,7 @@ export class AIController {
             return await skill.execute(this.agent.bot, resolvedArgs);
         } catch (error) {
             console.error(`Skill execution failed for ${skill.name}:`, error);
-            return `<TOOL ERROR>: ${skill.name} failed: ${this.stringifyError(error)}.`;
+            return `<TOOL ERROR>: ${skill.name} failed: ${stringifyError(error)}.`;
         }
     }
 
@@ -216,12 +222,12 @@ export class AIController {
 
         for (let attempt = 1; attempt <= config.actions.generationRetries; attempt++) {
             console.warn(
-                `Invalid arguments for ${skill.name} on attempt ${attempt}: ${validation.error}\n\n Raw arguments: ${this.stringifyArgs(rawArgs)}`
+                `Invalid arguments for ${skill.name} on attempt ${attempt}: ${validation.error}\n\n Raw arguments: ${stringifyJson(rawArgs, 2)}`
             );
 
             const repairPrompt = getToolRepairPrompt(
                 skill.name,
-                this.stringifyArgs(rawArgs),
+                stringifyJson(rawArgs, 2),
                 validation.error
             );
 
@@ -264,12 +270,7 @@ export class AIController {
             return { success: true, data: result.data };
         }
 
-        const error = result.error.issues
-            .map((issue) => {
-                const path = issue.path.length > 0 ? issue.path.join('.') : '(root)';
-                return `${path}: ${issue.message}`;
-            })
-            .join(' | ');
+        const error = formatValidationIssues(result.error.issues);
 
         return {
             success: false,
@@ -384,45 +385,17 @@ export class AIController {
             return rawValue;
         }
 
-        try {
-            const parsedValue = JSON.parse(trimmedValue);
+        const parsedValue = parseJsonOrOriginal(rawValue);
 
-            if (expectedType === 'object' && (!parsedValue || typeof parsedValue !== 'object' || Array.isArray(parsedValue))) {
-                return rawValue;
-            }
-
-            if (expectedType === 'array' && !Array.isArray(parsedValue)) {
-                return rawValue;
-            }
-
-            return parsedValue;
-        } catch {
+        if (expectedType === 'object' && (!parsedValue || typeof parsedValue !== 'object' || Array.isArray(parsedValue))) {
             return rawValue;
         }
-    }
 
-    private stringifyArgs(value: unknown): string {
-        try {
-            return JSON.stringify(value, null, 2) ?? String(value);
-        } catch {
-            return String(value);
-        }
-    }
-
-    private stringifySummaryValue(value: unknown): string {
-        try {
-            return JSON.stringify(value) ?? String(value);
-        } catch {
-            return String(value);
-        }
-    }
-
-    private stringifyError(error: unknown): string {
-        if (error instanceof Error) {
-            return error.message;
+        if (expectedType === 'array' && !Array.isArray(parsedValue)) {
+            return rawValue;
         }
 
-        return this.stringifySummaryValue(error);
+        return parsedValue;
     }
 
     private appendMessageToHistory(message: LlmMessage): void {
@@ -620,7 +593,7 @@ export class AIController {
             if (message.toolCalls && message.toolCalls.length > 0) {
                 const toolCalls = message.toolCalls
                     .map((toolCall) =>
-                        `${toolCall.function.name}(${this.stringifySummaryValue(toolCall.function.arguments)})`
+                        `${toolCall.function.name}(${stringifyJson(toolCall.function.arguments)})`
                     )
                     .join(', ');
                 parts.push(`[assistant tool_calls] ${toolCalls}`);

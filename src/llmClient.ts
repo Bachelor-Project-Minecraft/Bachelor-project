@@ -2,6 +2,7 @@ import { OpenRouter } from "@openrouter/sdk";
 import { Ollama } from "ollama";
 import { config } from "./config";
 import { AgentLogStore } from "./evolution/agentLogStore";
+import { cloneJson, parseJsonOrOriginal } from "./utils/util";
 import {
     LlmCallLog,
     LlmChatRequest,
@@ -103,7 +104,7 @@ export class LLMClient {
             timestamp: new Date().toISOString(),
             systemPrompt: this.getSystemPromptLog(request.messages),
             request: this.toLoggedChatRequest(request),
-            response: this.cloneForLogging(normalizedResponse)
+            response: cloneJson(normalizedResponse)
         });
         return normalizedResponse;
     }
@@ -163,8 +164,8 @@ export class LLMClient {
             kind: "generate",
             timestamp: new Date().toISOString(),
             systemPrompt: null,
-            request: this.cloneForLogging(request),
-            response: this.cloneForLogging(normalizedResponse)
+            request: cloneJson(request),
+            response: cloneJson(normalizedResponse)
         });
         return normalizedResponse;
     }
@@ -252,7 +253,7 @@ export class LLMClient {
             id: toolCall.id || this.createToolCallId(toolCall.function.name, index),
             function: {
                 name: toolCall.function.name,
-                arguments: this.parseJson(toolCall.function.arguments)
+                arguments: parseJsonOrOriginal(toolCall.function.arguments)
             }
         }));
     }
@@ -343,18 +344,10 @@ export class LLMClient {
 
     private normalizeToolArguments(value: unknown): unknown {
         if (typeof value === "string") {
-            return this.parseJson(value);
+            return parseJsonOrOriginal(value);
         }
 
         return value;
-    }
-
-    private parseJson(value: string): unknown {
-        try {
-            return JSON.parse(value);
-        } catch {
-            return value;
-        }
     }
 
     private createToolCallId(name: string, index: number): string {
@@ -386,13 +379,13 @@ export class LLMClient {
         return {
             content,
             memory,
-            environmentSnapshot: this.parseJson(environmentSnapshotText)
+            environmentSnapshot: parseJsonOrOriginal(environmentSnapshotText)
         };
     }
 
     private toLoggedChatRequest(request: LlmChatRequest): Omit<LlmChatRequest, "tools"> & { tools?: string[] } {
         return {
-            ...this.cloneForLogging(request),
+            ...cloneJson(request),
             tools: request.tools?.map((tool) => tool.function.name)
         };
     }
@@ -407,13 +400,5 @@ export class LLMClient {
         } catch (error) {
             console.error("Failed to append LLM log:", error);
         }
-    }
-
-    private cloneForLogging<T>(value: T): T {
-        if (value === undefined) {
-            return value;
-        }
-
-        return JSON.parse(JSON.stringify(value)) as T;
     }
 }
