@@ -37,6 +37,7 @@ export class Evolution {
                 prompt: getKnowledgebaseUpdatePrompt(
                     Evolution.getKnowledgebase(),
                     Evolution.getGenerationComparison(),
+                    Evolution.getGenerationHistory(),
                     longestLog.survivedMs,
                     JSON.stringify(longestLog.messages, null, 2),
                     shortestLog.survivedMs,
@@ -194,6 +195,12 @@ export class Evolution {
         const previousAverage = Evolution.getAverageSurvival(lines[lines.length - 2]);
         const currentAverage = Evolution.getAverageSurvival(lines[lines.length - 1]);
 
+        if (lines.length >= 3
+            && previousAverage <= Evolution.getAverageSurvival(lines[lines.length - 3])
+            && currentAverage <= previousAverage) {
+            return 'The recent generations have not meaningfully improved; survival appears to have plateaued around similar times.';
+        }
+
         if (currentAverage > previousAverage) {
             return 'The most recent generation survived longer on average than the previous generation.';
         }
@@ -203,6 +210,16 @@ export class Evolution {
         }
 
         return 'The most recent generation survived the same average time as the previous generation.';
+    }
+
+    private static getGenerationHistory(): string {
+        const filePath = Evolution.getGenerationsFilePath();
+        if (!fs.existsSync(filePath)) {
+            return 'No generation history is available yet.';
+        }
+
+        const content = fs.readFileSync(filePath, 'utf8').trim();
+        return content || 'No generation history is available yet.';
     }
 
     private static getAverageSurvival(generationLine: string): number {

@@ -28,12 +28,12 @@ export class SkillRegistry {
 
         this.registerBuiltInSkill(SendMessageSkill);
         this.registerBuiltInSkill(DoNothingSkill);
-        this.registerBuiltInSkill(MeleeAttackSkill);
-        this.registerBuiltInSkill(BowAttackSkill);
-        this.registerBuiltInSkill(MoveToCoordinateSkill);
-        this.registerBuiltInSkill(EquipItemInHandSkill);
-        this.registerBuiltInSkill(EquipGearSkill);
-        this.registerBuiltInSkill(EatBreadUntilFullSkill);
+        // this.registerBuiltInSkill(MeleeAttackSkill);
+        // this.registerBuiltInSkill(BowAttackSkill);
+        // this.registerBuiltInSkill(MoveToCoordinateSkill);
+        // this.registerBuiltInSkill(EquipItemInHandSkill);
+        // this.registerBuiltInSkill(EquipGearSkill);
+        // this.registerBuiltInSkill(EatBreadUntilFullSkill);
         this.registerBuiltInSkill(createNewActionSkill(actionService));
         actionService.loadGenerationSkills();
         this.builtInsInitialized = true;
