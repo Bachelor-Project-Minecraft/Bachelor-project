@@ -63,7 +63,18 @@ export function compileParameters(schemaSource: string): z.ZodObject<any> {
 }
 
 export function compileAction(code: string): ActionExecutor {
-    return new AsyncFunction('bot', 'args', 'Movements', 'goals', 'Vec3', 'startBackgroundSkill', code);
+    return new AsyncFunction(
+        'bot',
+        'args',
+        'Movements',
+        'goals',
+        'Vec3',
+        'startBackgroundSkill',
+        'waitUntilWorldActive',
+        'waitForActiveMs',
+        'canContinueBotAction',
+        code
+    );
 }
 
 export function parseGeneratedSkillDefinition(rawResponse: string): GeneratedSkillDefinition {

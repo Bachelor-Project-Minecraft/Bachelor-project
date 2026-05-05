@@ -119,83 +119,126 @@ Recent conversation:
 Summarize your old memory and recent conversation into a new memory, and respond only with the unwrapped memory text.
 `;
 
-const ACTION_GENERATION_EXAMPLES = `Use these examples as implementation patterns for generated actions. Basic physical actions may need to be generated because they are no longer guaranteed as predefined skills.
+const ACTION_GENERATION_EXAMPLES = `Use these examples and compact patterns as implementation guidance. Basic physical actions may need to be generated because they are no longer guaranteed as predefined skills.
 
-Example 1
-Pattern: Instant physical primitive. Validate the current state, do one short action, then return after it completes.
+Full JSON example 1: instant foreground action. Validate live state, do one short action, then return after it completes.
 Input args:
 0: "stone_sword"
 Output:
 {
-  "parameters": "z.object({ itemName: z.string().min(1).describe(\\"The inventory item to hold, for example stone_sword\\") })",
+  "parameters": "z.object({ itemName: z.string().min(1).describe(\\"Inventory item name to equip in hand, for example stone_sword\\") })",
   "executionArgs": { "itemName": "stone_sword" },
-  "code": "const normalizeItemName = function (value) {\\n  return value.trim().toLowerCase().replace(/^minecraft:/, '').replace(/\\\\s+/g, '_');\\n};\\nconst requestedName = normalizeItemName(args.itemName);\\nconst selectedItem = bot.inventory.items().find(function (item) {\\n  return normalizeItemName(item.name) === requestedName || (typeof item.displayName === 'string' && normalizeItemName(item.displayName) === requestedName);\\n});\\nif (!selectedItem) {\\n  return \\"<NO ITEM>: Could not find \\" + args.itemName + \\" in inventory.\\";\\n}\\nawait bot.equip(selectedItem, 'hand');\\nreturn \\"<EQUIPPED>: Now holding \\" + (selectedItem.displayName || selectedItem.name) + \\".\\";"
+  "code": "const normalizeItemName = function (value) {\\n  return String(value).trim().toLowerCase().replace(/^minecraft:/, '').replace(/\\\\s+/g, '_');\\n};\\nif (!bot.entity || bot.health <= 0) {\\n  return '<UNSAFE>: Cannot equip item because the bot is not alive.';\\n}\\nconst requestedName = normalizeItemName(args.itemName);\\nconst selectedItem = bot.inventory.items().find(function (item) {\\n  return normalizeItemName(item.name) === requestedName || (typeof item.displayName === 'string' && normalizeItemName(item.displayName) === requestedName);\\n});\\nif (!selectedItem) {\\n  return '<NO ITEM>: Could not find ' + args.itemName + ' in inventory.';\\n}\\nawait bot.equip(selectedItem, 'hand');\\nreturn '<DONE>: Equipped ' + (selectedItem.displayName || selectedItem.name) + ' in hand.';"
 }
 
-Example 2
-Pattern: Long-running movement primitive. Start background work and return immediately so the agent can still receive danger events and messages.
+Full JSON example 2: freeze-aware background action. Validate immediate requirements, start background work, return an honest started status.
 Input args:
-0: { "x": 10, "z": 4 }
+0: { "targetEntityId": 17, "maxShots": 3 }
 Output:
 {
-  "parameters": "z.object({ position: z.object({ x: z.number().describe(\\"Target x coordinate\\"), z: z.number().describe(\\"Target z coordinate\\") }).describe(\\"The destination coordinates to move to\\") })",
-  "executionArgs": { "position": { "x": 10, "z": 4 } },
-  "code": "const targetPosition = new Vec3(Math.floor(args.position.x), 0, Math.floor(args.position.z));\\nconst radius = 1;\\nstartBackgroundSkill(bot, 'move_to_coordinate', async function (token) {\\n  const movements = new Movements(bot);\\n  bot.pathfinder.setMovements(movements);\\n  try {\\n    await bot.pathfinder.goto(new goals.GoalNear(targetPosition.x, targetPosition.y, targetPosition.z, radius));\\n    if (!token.cancelled) {\\n      console.log('Finished moving toward (' + targetPosition.x + ', ' + targetPosition.y + ', ' + targetPosition.z + ').');\\n    }\\n  } catch (error) {\\n    if (!token.cancelled) {\\n      console.error('Failed moving toward (' + targetPosition.x + ', ' + targetPosition.y + ', ' + targetPosition.z + '):', error);\\n    }\\n  }\\n});\\nreturn \\"<MOVING>: Moving toward (\\" + targetPosition.x + \\", \\" + targetPosition.y + \\", \\" + targetPosition.z + \\") with radius \\" + radius + \\".\\";"
+  "parameters": "z.object({ targetEntityId: z.union([z.number().int(), z.string().min(1)]).describe(\\"Hostile entity id to shoot, from a fresh environment snapshot\\"), maxShots: z.number().int().min(1).max(12).default(3).describe(\\"Maximum arrows to fire before stopping\\"), holdDrawMs: z.number().int().min(600).max(1400).default(900).describe(\\"Active milliseconds to draw the bow for each shot\\") })",
+  "executionArgs": { "targetEntityId": 17, "maxShots": 3, "holdDrawMs": 900 },
+  "code": "const targetEntityId = String(args.targetEntityId);\\nconst pollMs = 50;\\nconst cooldownMs = 300;\\nconst hostileNames = new Set(['zombie', 'skeleton', 'husk', 'drowned', 'stray', 'spider', 'creeper', 'baby_zombie']);\\nconst arrowNames = new Set(['arrow', 'spectral_arrow', 'tipped_arrow']);\\nconst getArrowCount = function () {\\n  return bot.inventory.items().filter(function (item) { return arrowNames.has(item.name); }).reduce(function (count, item) { return count + item.count; }, 0);\\n};\\nconst findTarget = function () {\\n  return Object.values(bot.entities).find(function (entity) {\\n    return Boolean(entity && entity.isValid && String(entity.id) === targetEntityId && (entity.kind === 'Hostile mobs' || entity.type === 'hostile' || hostileNames.has(entity.name || '')));\\n  });\\n};\\nif (!bot.entity || bot.health <= 0) {\\n  return '<UNSAFE>: Cannot shoot because the bot is not alive.';\\n}\\nconst bow = bot.inventory.items().find(function (item) { return item.name === 'bow'; });\\nif (!bow) {\\n  return '<NO ITEM>: Could not find bow in inventory.';\\n}\\nif (getArrowCount() <= 0) {\\n  return '<NO ITEM>: Could not find arrows in inventory.';\\n}\\nif (!findTarget()) {\\n  return '<NO TARGET>: Could not find hostile entity ' + targetEntityId + '.';\\n}\\nstartBackgroundSkill(bot, 'shoot_hostile_with_bow', async function (token) {\\n  let usingItem = false;\\n  try {\\n    if (!await waitUntilWorldActive(bot, token, pollMs)) { return; }\\n    await bot.equip(bow, 'hand');\\n    for (let shot = 0; shot < args.maxShots; shot += 1) {\\n      if (!canContinueBotAction(bot, token)) { return; }\\n      if (getArrowCount() <= 0) { return; }\\n      const target = findTarget();\\n      if (!target) { return; }\\n      const aimPosition = target.position.offset(0, Math.max(0.6, (target.height || 1.8) * 0.75), 0);\\n      if (!await waitUntilWorldActive(bot, token, pollMs)) { return; }\\n      await bot.lookAt(aimPosition, true);\\n      if (!await waitUntilWorldActive(bot, token, pollMs)) { return; }\\n      bot.activateItem();\\n      usingItem = true;\\n      if (!await waitForActiveMs(bot, token, args.holdDrawMs, pollMs)) { return; }\\n      bot.deactivateItem();\\n      usingItem = false;\\n      if (!await waitForActiveMs(bot, token, cooldownMs, pollMs)) { return; }\\n    }\\n  } finally {\\n    if (usingItem) {\\n      bot.deactivateItem();\\n    }\\n  }\\n});\\nreturn '<STARTED>: Bow attack on hostile ' + targetEntityId + '; bow and arrows were available.';"
 }
 
-Example 3
-Pattern: Long-running resource-use loop. Check current state first, run repeated work in startBackgroundSkill, honor cancellation, and return immediately.
-Input args:
-No args provided.
-Output:
-{
-  "parameters": "z.object({})",
-  "executionArgs": {},
-  "code": "const maxFood = 20;\\nconst consumeMs = 1700;\\nconst freezePollMs = 50;\\nconst sleep = function (ms) {\\n  return new Promise(function (resolve) { setTimeout(resolve, ms); });\\n};\\nconst findBread = function () {\\n  return bot.inventory.items().find(function (item) { return item.name === 'bread'; });\\n};\\nif ((bot.food || 0) >= maxFood) {\\n  return \\"<ALREADY FULL>: Hunger is already full.\\";\\n}\\nif (!findBread()) {\\n  return \\"<NO BREAD>: Cannot eat because no bread is in inventory.\\";\\n}\\nstartBackgroundSkill(bot, 'eat_bread_until_full', async function (token) {\\n  const canContinue = function () { return !token.cancelled && bot.health > 0 && Boolean(bot.entity); };\\n  const waitUntilWorldActive = async function () {\\n    while (!bot.physicsEnabled) {\\n      if (!canContinue()) { return false; }\\n      await sleep(freezePollMs);\\n    }\\n    return canContinue();\\n  };\\n  while (canContinue() && (bot.food || 0) < maxFood) {\\n    const bread = findBread();\\n    if (!bread) { return; }\\n    await bot.equip(bread, 'hand');\\n    if (!await waitUntilWorldActive()) { return; }\\n    bot.activateItem();\\n    await sleep(consumeMs);\\n    bot.deactivateItem();\\n  }\\n});\\nreturn \\"<EATING>: Eating bread until hunger is full.\\";"
-}`;
+Compact implementation patterns:
+- Inventory lookup: normalize requested names by trimming, lowercasing, removing minecraft:, and replacing spaces with underscores. Check both item.name and item.displayName. Return <NO ITEM> when absent.
+- Entity lookup: resolve targets from current bot.entities at execution time. Validate entity.isValid, distance when relevant, id when supplied, and hostile/player identity for the task. Return <NO TARGET> when absent.
+- Movement: use new Movements(bot), usually set movements.canDig = false for escape, follow, and kite actions, then bot.pathfinder.setMovements(movements). Use GoalNear for coordinate targets. Use try/finally to clear pathfinder goals when the action exits.
+- Melee: use bot.pvp.attack(target) for sustained melee. Use bot.attack(target) only for a one-shot hit. Stop pvp in cleanup for background melee actions.
+- Bow: require bow and arrows before starting. Use lookAt, activateItem, waitForActiveMs for draw time, deactivateItem, and a short active cooldown. Re-check target and arrows before each shot.
+- Eating: require the food item before starting. Equip, activateItem, waitForActiveMs for consume time, deactivateItem, and stop when food is full or the item is gone.
+- Blocks/building: require the block item, keep block counts and distances bounded, re-check each placement target, and use try/finally cleanup. Do not build unbounded structures.
+- Following/regrouping: resolve players from bot.players[playerName]?.entity or current bot.entities. Stop if the player is absent, the bot is unsafe, or the task-specific condition is met.`;
 
 export const ACTION_GENERATION_PROMPT = `You design reusable Mineflayer tools.
+You are the action-generation model for a Minecraft survival-agent system. Another LLM has decided that a new reusable action is needed and has provided the task name, task description, suggested args, and current environment snapshot.
+Your job is not to choose the next survival strategy or chat with teammates. Your job is to turn that request into one robust, reusable Mineflayer action that can execute once now and then become a saved tool for future agents and future generations.
+Generated actions should be practical survival behaviors, safe to reuse, interruptible when they run over time, and defensive against changed live state.
+
 Task name: {ACTION_NAME}
 Task description: {ACTION_DESCRIPTION}
 Suggested args:
 {ACTION_ARGS}
 
-The environment snapshot is the calling bot's current observed Minecraft state; use it to understand nearby blocks, entities, inventory, health, and position.
+The environment snapshot is planning context from the calling bot's current observed Minecraft state. Use it to infer a useful schema and first executionArgs, but generated code must re-check live bot state at execution time because the action may run later or be reused by other agents.
 Current environment snapshot:
 {ENVIRONMENT_SNAPSHOT}
 
 Return exactly one valid JSON object with the fields:
 - parameters: a JavaScript string containing a valid root z.object(...) expression
 - executionArgs: a JSON object matching parameters, used only for the first execution
-- code: raw JavaScript body for an async function with runtime signature async (bot, args, Movements, goals, Vec3, startBackgroundSkill) => { ... }
+- code: raw JavaScript body for an async function with runtime signature async (bot, args, Movements, goals, Vec3, startBackgroundSkill, waitUntilWorldActive, waitForActiveMs, canContinueBotAction) => { ... }
 
-Available helpers:
+World-freeze model:
+This project freezes Minecraft time while LLMs are thinking, because Minecraft is real time and agents could die or the situation could change while waiting for model responses. When the world is frozen, bot.physicsEnabled is false and Minecraft physics/game progress should be treated as paused. Other agents can trigger LLM calls too, so the world may freeze at almost any time while your background action is running.
+Generated actions must separate foreground code from background code. Foreground code should do short live-state validation and immediate one-shot actions. Background code should handle any behavior that unfolds over active Minecraft time.
+Inside background code, never assume wall-clock time equals game time. Use waitUntilWorldActive before physics-dependent actions, and waitForActiveMs for durations such as eating, bow draw, cooldowns, polling, or timed loops. These helpers prevent frozen time from counting as progress and stop cleanly when the action is cancelled or the bot dies.
+
+Runtime values available in code:
 - bot: a mineflayer bot with bot.pathfinder already loaded
 - args: the validated named argument object created from your z.object schema
 - Movements: the movement class from mineflayer-pathfinder
 - goals: goal constructors from mineflayer-pathfinder
 - Vec3: Vec3 constructor for block positions
-- startBackgroundSkill: helper for long-running work. Call startBackgroundSkill(bot, actionName, async function (token) { ... }) and return immediately when the action should continue over time. The token has token.cancelled; check it inside loops and after waits.
-- z: the Zod namespace used inside the parameters string
-Rules:
+- startBackgroundSkill: helper for long-running work. It cancels the previous background skill for this bot, stops pvp/pathfinder/control states/item use, creates a token with token.cancelled, and runs work(token) without blocking the returned tool result.
+- waitUntilWorldActive(bot, token, pollMs): waits while bot.physicsEnabled is false, returns false if the token is cancelled or the bot is no longer alive
+- waitForActiveMs(bot, token, activeMs, pollMs): waits for active unfrozen time only, returns false if the token is cancelled or the bot is no longer alive
+- canContinueBotAction(bot, token): returns true only when token.cancelled is false, bot.health > 0, and bot.entity exists
+- z: the Zod namespace is available only inside the parameters string, not inside code
+
+Project context:
+- This project usually runs survival-wave scenarios in a mostly flat world.
+- Agents often start with some mix of stone_sword, bow, arrow, leather_chestplate, bread, and sometimes oak_planks.
+- Common threats include zombies, skeletons, husks, baby zombies, and stronger armored zombies.
+- Teammates may be visible in the snapshot and can be resolved by player name or entity id at runtime.
+- The live bot state is authoritative. Never assume an item, block, teammate, or enemy exists unless the generated code can find it from bot.inventory, bot.entities, bot.players, bot.entity.position, bot.health, or bot.food at execution time.
+
+Output and schema rules:
 - Output valid JSON only, with no markdown fences or explanations
 - The parameters string must compile as valid JavaScript and valid Zod
 - The parameters string must start with z.object(...)
-- It is acceptable to generate fundamental physical primitives such as moving, attacking, eating, equipping, digging, or item pickup; these may not exist as built-in tools.
 - Prefer double-quoted .describe("...") text in the parameters string, especially when the text contains apostrophes
-- Treat suggested args as the preferred starting point; change them only when they seem incomplete, mismatched, or less useful for the task
-- Design parameters so future agents can call this saved tool correctly
+- Treat suggested args as examples for the first execution, not as the required final schema. Redesign them into clear named properties when that makes the saved tool more reusable.
+- Preserve the task intent and first execution values in executionArgs
+- Design parameters so future agents can call this saved tool safely in many contexts
 - executionArgs must validate against parameters
-- Use descriptive top-level property names like position, playerName, options, radius
-- Add .describe(...) to meaningful fields and nested objects when helpful
+- Use descriptive top-level property names like position, targetEntityId, itemName, playerName, options, radiusBlocks, maxDurationMs, maxShots, maxBlocks, followDistanceBlocks
+- Include units in names or descriptions for distances, ticks, milliseconds, counts, and radii
+- Add .describe(...) to every non-obvious top-level field and nested object
+
+Code rules:
 - Do not include imports, TypeScript, or an outer function
-- Use only bot, args, Movements, goals, Vec3, and startBackgroundSkill in code
-- Do not block the agent on long-running tasks. For movement, repeated eating, waiting, guarding, following, building over multiple blocks, or any loop that may take more than a moment, use startBackgroundSkill with the exact task name and return a short status string immediately so new events and messages can interrupt or redirect the agent.
-- Background work must stop cleanly when token.cancelled is true, and loops should check bot.health > 0 and Boolean(bot.entity). If waiting while the world may be frozen, pause progress while !bot.physicsEnabled.
+- Do not reference external variables. Runtime-provided names are bot, args, Movements, goals, Vec3, startBackgroundSkill, waitUntilWorldActive, waitForActiveMs, and canContinueBotAction. Standard JavaScript built-ins such as Object, Math, Set, Promise, and Date are allowed.
 - Read inputs from named properties on args, never from args[index]
-- Return a short string describing what happened
+- Do not call bot.chat, bot.whisper, console.log, console.warn, or console.error
+- Do not include comments in generated code
+- Return a concise status string as the primary result
 - Use valid JavaScript, not TypeScript
 - If you need callbacks in code, prefer function expressions over arrow functions
+- It is acceptable to generate fundamental physical primitives such as moving, attacking, eating, equipping, digging, item pickup, following, kiting, shooting, or placing blocks; these may not exist as built-in tools.
+- For instant foreground actions, keep execution short: validate live state, perform the one-shot action, return.
+- For anything that may wait, loop, move over time, attack over time, eat, shoot, follow, guard, build multiple blocks, dig, or consume active game time, call startBackgroundSkill(bot, '{ACTION_NAME}', async function (token) { ... }) and return immediately.
+- Example action names are illustrative only. In your generated code, always pass the actual Task name "{ACTION_NAME}" as the second argument to startBackgroundSkill.
+- Background actions may be continuous until interrupted when the task is naturally continuous, such as guarding, following, kiting, attacking, or shooting. They must still have strong live stop conditions and cleanup.
+- Prefer explicit limits such as maxDurationMs, maxShots, maxBlocks, maxDistanceBlocks, maxAttempts, or radiusBlocks when the action consumes resources, changes terrain, moves far, places blocks, digs, or is experimental.
+- In background skills, assume the world may become frozen at any time. Use waitUntilWorldActive before physical interactions that depend on active physics, and use waitForActiveMs for eating, bow draw, cooldowns, short delays, and polling intervals that should count only unfrozen time.
+- Do not define your own sleep for active gameplay timing, do not use bot.waitForTicks, and do not rely on bot.physicsEnabled checks alone for waiting.
+- Every background loop must check canContinueBotAction(bot, token) frequently and must stop when the target disappears, required resources are missing, the bot is unsafe, or the task-specific condition is complete.
+- Use try/finally inside startBackgroundSkill when the action uses pathfinder goals, pvp, control states, or activateItem. In finally, clean up only what the action used, such as bot.pathfinder.setGoal(null), bot.pathfinder.stop(), bot.pvp.stop(), bot.clearControlStates(), or bot.deactivateItem().
+- Do not hard-code facts from the environment snapshot into code unless they come through args. Re-check current bot.inventory, bot.entities, bot.players, bot.entity.position, bot.health, and bot.food before acting.
+- Degrade gracefully with a status string instead of throwing when live state does not support the action.
+
+Status string rules:
+- Use <STARTED> for background actions that were validated and launched
+- Use <DONE> for instant foreground actions that completed
+- Use <NO TARGET> when an entity, player, block, or position target cannot be found or used
+- Use <NO ITEM> when a required inventory item is missing
+- Use <UNSAFE> when the bot is dead, missing bot.entity, too low health, or the action would be dangerous
+- Use <INVALID> when arguments validate structurally but are unusable in the current state
+- Use <STOPPED> when the desired condition is already satisfied or the action should no-op immediately
+- For background actions, be honest: say what was validated and started, not that the future outcome succeeded
+- Expected stops inside background work, such as cancellation, missing targets, missing resources, unsafe bot state, or completed limits, should clean up and stop silently because they cannot return a later tool result
 
 ${ACTION_GENERATION_EXAMPLES}
 
@@ -247,10 +290,10 @@ export const getActionGenerationPrompt = (
     const environmentText = environmentSnapshot || 'No snapshot provided.';
 
     const basePrompt = ACTION_GENERATION_PROMPT
-        .replace('{ACTION_NAME}', name)
-        .replace('{ACTION_DESCRIPTION}', description)
-        .replace('{ACTION_ARGS}', argsText)
-        .replace('{ENVIRONMENT_SNAPSHOT}', environmentText);
+        .replaceAll('{ACTION_NAME}', name)
+        .replaceAll('{ACTION_DESCRIPTION}', description)
+        .replaceAll('{ACTION_ARGS}', argsText)
+        .replaceAll('{ENVIRONMENT_SNAPSHOT}', environmentText);
 
     const feedbackText = validationFeedback.trim();
     if (!feedbackText) {

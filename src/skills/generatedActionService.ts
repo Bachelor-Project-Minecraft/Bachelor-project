@@ -9,13 +9,16 @@ import { LLMClient } from "../llmClient";
 import { GeneratedSkillDefinition, Skill } from "../types";
 import { getActionGenerationPrompt } from "../utils/prompts";
 import {
+    canContinueBotAction,
     formatValidationIssues,
     getRuntimePath,
     isStoredAction,
     normalizeActionName,
     normalizeText,
     stringifyError,
-    stringifyJson
+    stringifyJson,
+    waitForActiveMs,
+    waitUntilWorldActive
 } from "../utils/util";
 import { startBackgroundSkill } from "./backgroundSkillRunner";
 import type { ActionExecutor, PreparedAction, RegisterGeneratedSkill, RunWhileWorldFrozen, StoredAction, UseActionInput } from "./types";
@@ -213,7 +216,17 @@ export class GeneratedActionService {
     }
 
     private async runAction(action: ActionExecutor, bot: Bot, args: unknown): Promise<string> {
-        const result = await action(bot, args, PathfinderMovements, PathfinderGoals, Vec3Constructor, startBackgroundSkill);
+        const result = await action(
+            bot,
+            args,
+            PathfinderMovements,
+            PathfinderGoals,
+            Vec3Constructor,
+            startBackgroundSkill,
+            waitUntilWorldActive,
+            waitForActiveMs,
+            canContinueBotAction
+        );
         return typeof result === 'string' ? result : String(result);
     }
 
