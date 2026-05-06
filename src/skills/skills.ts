@@ -423,7 +423,23 @@ const UseActionToolParameters: ToolSchema = {
         },
         args: {
             type: 'array',
-            description: 'Ordered JSON arguments for the action. Use simple JSON values like strings, numbers, booleans, arrays, or objects.'
+            description: 'Ordered JSON arguments for the action. Use simple JSON values like strings, numbers, booleans, arrays, or objects.',
+            items: {
+                anyOf: [
+                    { type: 'string' },
+                    { type: 'number' },
+                    { type: 'boolean' },
+                    {
+                        type: 'array',
+                        items: {}
+                    },
+                    {
+                        type: 'object',
+                        additionalProperties: true
+                    },
+                    { type: 'null' }
+                ]
+            }
         }
     },
     required: ['name', 'description', 'args']

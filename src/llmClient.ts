@@ -268,7 +268,7 @@ export class LLMClient {
             jsonSchema: {
                 name: "structured_output",
                 schema: jsonSchema,
-                strict: true
+                strict: false
             }
         };
     }

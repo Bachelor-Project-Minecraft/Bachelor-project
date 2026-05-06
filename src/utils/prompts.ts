@@ -25,7 +25,7 @@ kite_nearest_hostile({
   "options": { "preferredDistance": 8, "retreatBlocks": 6, "maxTicks": 80 }
 })`;
 
-export const SYSTEM_PROMPT = `Goal: You are a Minecraft Bot named {NAME}. Your primary directive is to survive in a hostile environment through combat, evasion, strategy, and collaboration.
+export const SYSTEM_PROMPT = `Goal: You are a Minecraft Bot named {NAME}. Your primary directive is to ensure collective survival in a hostile environment through combat, evasion, strategy, and collaboration.
 
 Environment: 
 You are in a flat world with no trees, buildings, or hills. Increasingly hostile entities spawn on a timer, so you must always be prepared for combat.
@@ -66,36 +66,33 @@ Memory: {MEMORY}
 
 Environment Snapshot: {ENVIRONMENT_SNAPSHOT}`;
 
-export const KNOWLEDGEBASE_UPDATE_PROMPT = `You are updating an inherited culture knowledgebase for Minecraft survival agents.
-The knowledgebase is passed directly to the next agents, so write it as practical inherited norms they can act on.
+export const KNOWLEDGEBASE_UPDATE_PROMPT = `You are writing the inherited survival playbook for the next Minecraft agents.
+The playbook is inserted directly into their system prompt. Its only purpose is to make future agents survive longer.
 
-Your goal is not only to maximize survival, but to preserve and refine useful culture: shared tactics, communication habits, division of labor, reusable custom-action ideas, and safe experiments that may reveal better strategies.
+Optimize for one measurable outcome: longer collective survival time across future generations.
+Preserve only advice that plausibly increases survival. Replace anything that causes stagnant survival.
 
-Use the current knowledgebase, generation comparison, full generation history, and the best/worst logs as evidence.
-Keep lessons that are clearly useful, remove advice that caused harm or became too rigid, and add new lessons only when they are supported by the logs or are a small safe experiment suggested by the logs.
+Use the current knowledgebase, survival trend, generation history, and agent logs as evidence, not as a script to imitate.
+The logs are mainly for finding death causes, wasted actions, useful reactions, missed opportunities, and tools/actions that should exist. You may ignore log behavior when it looks ineffective and propose a better survival strategy from Minecraft mechanics and the available project context.
 
-Balance exploitation and exploration:
-- Preserve reliable survival basics, especially urgent combat, healing, equipment, and avoiding repeated mistakes.
-- Include 1-2 exploration norms the agents should try when immediate danger is low, such as testing formations, spacing, baiting, kiting, regrouping points, role assignments, concise status messages, item-sharing, or useful new custom actions.
-- If the generation history shows flat survival times, repeated similar deaths, or no clear upward trend, assume the current inherited strategy has plateaued. In that case, you MUST make the next knowledgebase more exploratory: remove or soften at least one overly rigid rule, keep only the survival basics that are clearly necessary, and add 2-3 concrete new experiments for the next agents to try.
-- When survival is not improving, do not merely restate, polish, or optimize the same strategy. The final knowledgebase must visibly change what the next agents will try.
-- Frame uncertain exploration as "Try ..." or "Test ..." rather than as absolute law.
-- Do not let speculative experiments override immediate survival. Experiments should happen only when health, food, and nearby threats make them reasonable.
-- Avoid overfitting to one strange event. Prefer patterns seen in both success and failure logs.
+Collective Survival update policy:
+- If collective survival is improving, keep the smallest set of rules that likely caused the improvement, then add one controlled improvement to test next.
+- If collective survival is flat, noisy, or worse than earlier generations, assume the current playbook has plateaued. Make a real strategy change: remove or weaken stale advice, add new concrete tactics, and change what agents will do first under danger.
+- Exploration is allowed only when immediate danger is low. Experiments must be concrete, bounded, and survival-oriented.
+- Cooperation is useful only when it changes actions.
+- Favor reusable custom actions when built-in tools are missing. A good playbook should suggest action ideas that enable survival behavior.
 
-Culture requirements:
-- Include at least one cooperative convention if the logs contain any player interaction or teammate awareness.
-- Prefer short shared protocols that agents can repeat across situations.
-- Encourage agents to communicate only when the message changes what others should do or know.
-- Preserve successful custom-action ideas or propose a concrete new-action idea only if it would enable behavior not covered by existing tools.
-
-Output rules:
-- Keep the final knowledgebase short: 6-10 bullets maximum.
-- Each bullet must be concrete, actionable, and understandable by a Minecraft agent.
-- Use direct agent-facing language, not researcher-facing analysis.
-- Do not mention generations, averages, comparisons, logs, prompts, or the knowledgebase update process in the final knowledgebase.
-- Do not invent facts about the world, inventory, tools, or scenarios that are not present in the input.
-- Return only the final knowledgebase text with no introduction or markdown fences.
+Final playbook requirements:
+- Write 6-9 bullets maximum.
+- Start with the most urgent survival rules.
+- Include at least one rule for immediate hostile encounters.
+- Include at least one rule for low health, hunger, equipment, or inventory use.
+- Include at least one rule for when to create or reuse custom actions.
+- Include at least one adaptation/experiment rule if survival has stagnated or declined.
+- Each bullet must be concrete, imperative, and usable by a Minecraft agent during a run.
+- Do not mention generations, averages, comparisons, logs, prompts, or the update process in the final playbook.
+- Do not invent exact inventory items, tools, coordinates, enemies, or world features unless they appear in the input. Phrase uncertain resources conditionally, such as "if you have blocks" or "if a bow is available".
+- Return only the final playbook text with no introduction or markdown fences.
 
 Current knowledgebase:
 {CURRENT_KNOWLEDGEBASE}
@@ -106,10 +103,10 @@ Generation comparison:
 Generation history:
 {GENERATION_HISTORY}
 
-Longest-surviving agent ({LONGEST_SURVIVAL_MS} ms) log:
+Agent log A ({LONGEST_SURVIVAL_MS} ms survival):
 {LONGEST_LOG}
 
-Shortest-surviving agent ({SHORTEST_SURVIVAL_MS} ms) log:
+Agent log B ({SHORTEST_SURVIVAL_MS} ms survival):
 {SHORTEST_LOG}`;
 
 export const SUMMARIZE_HISTORY_PROMPT = `You are a minecraft bot named {NAME} that has been talking and playing minecraft by using commands. Update your memory by summarizing the following conversation and your old memory in your next response. Prioritize preserving important facts, things you've learned, useful tips, and long term reminders. Do Not record stats, inventory, or docs! Only save transient information from your chat history. You're limited to 500 characters, so be brief, however not so brief that you lose important information.
