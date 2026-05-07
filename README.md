@@ -1,3 +1,5 @@
+![Project thumbnail](<assets/Thumbnail Rounded.png>)
+
 # Problem statement:
 
 Can a population of LLM agents in Minecraft evolve culture to facilitate cooperation and survival under environmental pressures?
