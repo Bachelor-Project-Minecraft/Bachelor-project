@@ -1,0 +1,9 @@
+[
+  {
+    "name": "equip_leather_tunic",
+    "description": "Equip leather armor for protection against hostiles",
+    "parameters": "z.object({ item: z.string().describe(\"The Minecraft name or display name of the item to equip, e.g., 'leather_chestplate' or 'Leather Tunic'\") })",
+    "code": "const findTargetItem = function(name) {\n  const search = name.toLowerCase().replace(/_/g, ' ');\n  return bot.inventory.items().find(function(i) {\n    return i.name.toLowerCase() === name.toLowerCase() ||\n           i.name.toLowerCase() === name.toLowerCase().replace(/\\s+/g, '_') ||\n           (i.displayName && i.displayName.toLowerCase() === search);\n  });\n};\nconst itemToEquip = findTargetItem(args.item);\nif (!itemToEquip) {\n  return \"<MISSING>: You do not have '\" + args.item + \"' in your inventory.\";\n}\nlet slot = 'hand';\nconst internalName = itemToEquip.name.toLowerCase();\nif (internalName.includes('helmet') || internalName.includes('cap')) {\n  slot = 'head';\n} else if (internalName.includes('chestplate') || internalName.includes('tunic') || internalName.includes('elytra')) {\n  slot = 'torso';\n} else if (internalName.includes('leggings') || internalName.includes('pants')) {\n  slot = 'legs';\n} else if (internalName.includes('boots') || internalName.includes('shoes')) {\n  slot = 'feet';\n}\ntry {\n  await bot.equip(itemToEquip, slot);\n  return \"<SUCCESS>: Equipped \" + (itemToEquip.displayName || itemToEquip.name) + \" to \" + slot + \".\";\n} catch (err) {\n  return \"<ERROR>: Failed to equip \" + itemToEquip.name + \": \" + err.message;\n}",
+    "count": 2
+  }
+]

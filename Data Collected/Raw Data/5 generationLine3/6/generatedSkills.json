@@ -1,0 +1,16 @@
+[
+  {
+    "name": "place_oak_plank",
+    "description": "Place an oak plank block to build shelter",
+    "parameters": "z.object({blockType:z.string().describe('The item name of the block to place (e.g. “oak_planks”)'),options:z.object({count:z.number().int().min(1).max(64).default(1).describe('Number of blocks to stack upwards'),location:z.literal('current_position').describe('Place above current feet position')}).describe('Stacking options for building shelter')})",
+    "code": "const {blockType, options: {count, location}} = args;if(location!=='current_position'){return'<UNSUPPORTED>:Only current_position supported.';}const feetPos=new Vec3(Math.floor(bot.entity.position.x),Math.floor(bot.entity.position.y),Math.floor(bot.entity.position.z));const movements=new Movements(bot);bot.pathfinder.setMovements(movements);let placed=0;for(let i=0;i<count;i++){const height=1+placed;const placePos=feetPos.offset(0,height,0);const refPos=placePos.offset(0,-1,0);const refBlock=bot.blockAt(refPos);const targetBlock=bot.blockAt(placePos);if(targetBlock?.name!=='air'){break;}if(!refBlock||refBlock.name==='air'||refBlock.boundingBox==='empty'){break;}await bot.pathfinder.goto(new goals.GoalNear(placePos.x,placePos.y,placePos.z,1.5));const item=bot.inventory.findInventoryItem(blockType);if(!item){return`<NO ITEM>:Ran out of ${blockType}. Placed ${placed}.`;}await bot.equip(item,'hand');const placedBlock=await bot.placeBlock(refBlock,new Vec3(0,1,0));if(placedBlock){placed++;}else{break;}await bot.waitForTicks(10);}bot.pathfinder.setGoal(null);return`<PLACED>:Placed ${placed} ${blockType} blocks upwards for shelter.`;",
+    "count": 1
+  },
+  {
+    "name": "place_oak_planks",
+    "description": "Place oak planks to build shelter against incoming zombies",
+    "parameters": "z.object({blockType:z.string().describe('Minecraft item name to place, e.g. oak_planks'),location:z.object({x:z.number().describe('X coordinate of target position'),y:z.number().describe('Y coordinate of target position'),z:z.number().describe('Z coordinate of target position')}).describe('Target position to place block')})",
+    "code": "const targetPos = new Vec3(Math.floor(args.location.x), Math.floor(args.location.y), Math.floor(args.location.z));const targetBlock = bot.blockAt(targetPos);if (targetBlock.name !== 'air') {return '<NOT AIR>: Target position is not air.';}const itemToPlace = bot.inventory.items().find(item => item.name === args.blockType);if (!itemToPlace) {return '<NO ITEM>: No ' + args.blockType + ' in inventory.';}const movements = new Movements(bot);bot.pathfinder.setMovements(movements);await bot.pathfinder.goto(new goals.GoalNear(targetPos.x, targetPos.y, targetPos.z, 2));await bot.equip(itemToPlace, 'hand');const faces = [new Vec3(0,1,0), new Vec3(0,-1,0), new Vec3(1,0,0), new Vec3(-1,0,0), new Vec3(0,0,1), new Vec3(0,0,-1)];for (const face of faces) {const referencePos = targetPos.clone().offset(face.scale(-1));const referenceBlock = bot.blockAt(referencePos);if (referenceBlock && referenceBlock.name !== 'air') {try {await bot.placeBlock(referenceBlock, face);return '<PLACED>: Placed ' + args.blockType + ' at target.';} catch (e) {}}}return '<FAILED>: Could not place block.';",
+    "count": 1
+  }
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "name": "build_defensive_wall",
+    "description": "Build a defensive wall at position (1,0,1) using oak_planks",
+    "parameters": "z.object({position: z.object({x: z.number().int().describe('X coordinate of the wall starting position'),y: z.number().int().describe('Y coordinate of bottom'),z: z.number().int().describe('Z coordinate')}).describe('Starting block position of the wall (builds along +X)'),height: z.number().int().min(1).describe('Height of the wall'),length: z.number().int().min(1).describe('Length along +X'),material: z.string().describe('Item name like oak_planks, must have enough in inventory')})",
+    "code": "const movements = new Movements(bot);bot.pathfinder.setMovements(movements);let materialCount = 0;for (const item of bot.inventory.items()) {if (item.name === args.material) {materialCount += item.count;}}const required = args.length * args.height;if (materialCount < required) {return `<NOT ENOUGH>: Need ${required} ${args.material}, have ${materialCount}`;}const toEquip = [...bot.inventory.items()].find(item => item.name === args.material);if (!toEquip) {return `<NO MATERIAL>: No ${args.material}`;}await bot.equip(toEquip, 'hand');let placedCount = 0;const total = required;for (let dx = 0; dx < args.length; dx++) {for (let dy = 0; dy < args.height; dy++) {const targetPos = new Vec3(args.position.x + dx, args.position.y + dy, args.position.z);const block = bot.blockAt(targetPos);if (block.boundingBox !== 'empty') {continue;}const refPos = new Vec3(targetPos.x, targetPos.y - 1, targetPos.z);const refBlock = bot.blockAt(refPos);if (refBlock.boundingBox === 'empty') {continue;}await bot.pathfinder.goto(new goals.GoalNear(targetPos.x, targetPos.y, targetPos.z, 2));const faceVector = new Vec3(0, 1, 0);try {await bot.placeBlock(refBlock, faceVector);placedCount++;} catch (err) {}}}return `<BUILT>: Defensive wall: ${placedCount}/${total} blocks placed`;",
+    "count": 1
+  }
+]

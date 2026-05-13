@@ -1,0 +1,9 @@
+[
+  {
+    "name": "maintain_line_of_sight",
+    "description": "Move to maintain visual contact with Bot2 while keeping each other in defensive range",
+    "parameters": "z.object({playerName:z.string().describe('The exact name of the player to maintain line of sight with'),options:z.object({distance:z.number().min(1).describe('Maximum distance for defensive range'),mode:z.string().describe('Mode such as defensive')}).describe('Behavior options')})",
+    "code": "const target = bot.players[args.playerName]?.entity;if(!target){return `<NO TARGET>: Could not find ${args.playerName}.`;}const movements = new Movements(bot);bot.pathfinder.setMovements(movements);bot.pathfinder.setGoal(new goals.GoalFollow(target,args.options.distance));const startTime = Date.now();const timeout = 10000;while(target.position.distanceTo(bot.entity.position) > args.options.distance){if(Date.now() - startTime > timeout)break;if(!target.position)break;await new Promise(r=>setTimeout(r,100));}bot.pathfinder.setGoal(null);bot.lookAt(target.position);const finalDist = target.position.distanceTo(bot.entity.position);const distStr = finalDist.toFixed(1);if(parseFloat(distStr) <= args.options.distance){return `<MAINTAINED LOS>: In range (${distStr}) of ${args.playerName}.`;}else{return `<TIMED OUT>: At ${distStr} blocks from ${args.playerName}.`; }",
+    "count": 19
+  }
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "name": "retreat_and_eat",
+    "description": "Move to the specified x,z coordinate while eating bread until full to recover health during retreat.",
+    "parameters": "z.object({ targetX: z.number().describe('The x coordinate to retreat to'), targetZ: z.number().describe('The z coordinate to retreat to') })",
+    "code": "const retreatX = args.targetX;\nconst retreatZ = args.targetZ;\nconst breadName = 'bread';\n\nconst hasBread = () => bot.inventory.items().some(item => item.name === breadName);\nconst horizontalDistance = (pos) => Math.hypot(pos.x - retreatX, pos.z - retreatZ);\n\nconst movements = new Movements(bot);\nbot.pathfinder.setMovements(movements);\nbot.pathfinder.setGoal(new goals.GoalXZ(retreatX, retreatZ));\n\nlet reached = false;\n\nwhile (true) {\n  const dist = horizontalDistance(bot.entity.position);\n  reached = dist <= 2;\n\n  const needsFood = bot.food < 20 && hasBread();\n\n  if (reached && !needsFood) break;\n\n  if (needsFood) {\n    try {\n      const breadItem = bot.inventory.items().find(item => item.name === breadName);\n      if (breadItem) {\n        await bot.equip(breadItem, 'hand');\n        await bot.consume();\n      }\n    } catch (e) {\n      // Eating interrupted, continue retreating\n    }\n  }\n\n  if (!reached && !bot.pathfinder.goal) {\n    bot.pathfinder.setGoal(new goals.GoalXZ(retreatX, retreatZ));\n  }\n\n  await new Promise(resolve => setTimeout(resolve, 100));\n}\n\nbot.pathfinder.setGoal(null);\n\nif (reached) {\n  if (bot.food >= 20) {\n    return '<SUCCESS>: Retreated to destination and ate bread until full.';\n  } else if (!hasBread()) {\n    return '<PARTIAL>: Retreated to destination but ran out of bread.';\n  } else {\n    return '<SUCCESS>: Retreated to destination.';\n  }\n} else {\n  return '<FAILED>: Did not reach the retreat coordinates.';\n}",
+    "count": 1
+  }
+]

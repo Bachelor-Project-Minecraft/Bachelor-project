@@ -1,0 +1,9 @@
+[
+  {
+    "name": "equip_leather_tunic",
+    "description": "Equip the leather tunic from inventory for protection",
+    "parameters": "z.object({ itemName: z.string().default(\"leather_tunic\").describe(\"Name or display name of the leather protection to equip, e.g., leather_tunic\") })",
+    "code": "if (!bot.entity || bot.health <= 0) {\n  return '<UNSAFE>: Cannot equip item because the bot is not alive.';\n}\n\nconst normalize = function (val) {\n  return String(val).trim().toLowerCase().replace(/^minecraft:/, '').replace(/\\s+/g, '_');\n};\n\nconst requestedName = normalize(args.itemName);\nconst items = bot.inventory.items();\n\nconst armorItem = items.find(function (item) {\n  const nameMatch = normalize(item.name) === requestedName;\n  const displayMatch = item.displayName && normalize(item.displayName) === requestedName;\n  const chestplateGeneric = requestedName.includes('tunic') && item.name.includes('chestplate');\n  return nameMatch || displayMatch || chestplateGeneric;\n});\n\nif (!armorItem) {\n  return '<NO ITEM>: Could not find ' + args.itemName + ' in inventory.';\n}\n\nconst destination = 'torso';\n\ntry {\n  await bot.equip(armorItem, destination);\n  return '<DONE>: Equipped ' + (armorItem.displayName || armorItem.name) + ' to ' + destination + '.';\n} catch (err) {\n  return '<INVALID>: Failed to equip ' + (armorItem.displayName || armorItem.name) + ': ' + err.message;\n}",
+    "count": 2
+  }
+]

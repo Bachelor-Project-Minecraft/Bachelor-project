@@ -1,0 +1,9 @@
+[
+  {
+    "name": "move_to_coordinate",
+    "description": "Move to a target x/z coordinate using pathfinder to position for defense or attack",
+    "parameters": "z.object({ x: z.number().describe(\"Target x coordinate\"), z: z.number().describe(\"Target z coordinate\"), radius: z.number().optional().default(1).describe(\"Acceptance radius around the target coordinate\") })",
+    "code": "const targetPosition = new Vec3(args.x, bot.entity.position.y, args.z);\nconst radius = args.radius;\nstartBackgroundSkill(bot, 'move_to_coordinate', async function (token) {\n  const movements = new Movements(bot);\n  bot.pathfinder.setMovements(movements);\n  const goal = new goals.GoalNear(targetPosition.x, targetPosition.y, targetPosition.z, radius);\n  try {\n    await bot.pathfinder.goto(goal);\n    if (!token.cancelled) {\n      console.log('Successfully reached target coordinates: (' + targetPosition.x + ', ' + targetPosition.z + ')');\n    }\n  } catch (error) {\n    if (token.cancelled) return;\n    if (error.name === 'PathfindingNoPath') {\n      console.error('No path found to (' + targetPosition.x + ', ' + targetPosition.z + ')');\n    } else if (error.name !== 'Cancelled') {\n      console.error('Movement failed to (' + targetPosition.x + ', ' + targetPosition.z + '):', error);\n    }\n  }\n});\nreturn \"<MOVING>: Moving to x:\" + args.x + \", z:\" + args.z + \" with radius \" + radius + \".\";",
+    "count": 1
+  }
+]

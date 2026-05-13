@@ -1,0 +1,9 @@
+[
+  {
+    "name": "patrol_area",
+    "description": "Move forward and scan for new hostile spawns",
+    "parameters": "z.object({distance:z.number().min(1).describe('Distance in blocks to move forward'),speed:z.number().min(1).describe('Relative movement speed; greater than 2 enables sprinting')})",
+    "code": "const hostileTypes = new Set(['zombie','skeleton','spider','cave_spider','creeper','enderman','witch','blaze','ghast','wither_skeleton','stray','husk','zombie_villager','drowned','phantom','zombified_piglin','piglin','piglin_brute'] ); function isHostile(entity) { return entity.type && hostileTypes.has(entity.type) && entity !== bot.entity && entity.type !== 'player'; } const startPos = bot.entity.position.clone(); const initialHostiles = new Set( Object.values(bot.entities).filter( e => isHostile(e) && e.position.distanceTo(startPos) <= 10 ).map(e => e.id) ); const startYaw = bot.entity.yaw; bot.clearControlStates(); bot.setControlState('forward', true); if (args.speed > 2) { bot.setControlState('sprint', true); } let traveledDist = 0; const scanRadius = 10; while (traveledDist < args.distance) { const horizDist = Math.hypot( bot.entity.position.x - startPos.x, bot.entity.position.z - startPos.z ); traveledDist = horizDist; const currentHostiles = Object.values(bot.entities).filter( e => isHostile(e) && e.position.distanceTo(bot.entity.position) <= scanRadius ); const newHostiles = currentHostiles.filter( e => !initialHostiles.has(e.id) ); if (newHostiles.length > 0) { bot.clearControlStates(); return `<DETECTED NEW HOSTILES>: Found ${newHostiles.length} new hostile spawns at ${Math.round(traveledDist)} blocks in.`; } await new Promise(resolve => setTimeout(resolve, 100)); } bot.clearControlStates(); return `<PATROL COMPLETE>: Moved forward ${Math.round(traveledDist)} blocks, no new hostile spawns detected.`;",
+    "count": 2
+  }
+]

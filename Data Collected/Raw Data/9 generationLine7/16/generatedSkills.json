@@ -1,0 +1,9 @@
+[
+  {
+    "name": "equip_leather_armor",
+    "description": "Equip the leather tunic chestplate for protection",
+    "parameters": "z.object({ itemName: z.string().describe(\"The name of the armor item to equip, e.g., 'leather_chestplate'\"), destination: z.enum([\"head\", \"torso\", \"legs\", \"feet\", \"off-hand\", \"hand\"]).describe(\"The equipment slot to use\") })",
+    "code": "const normalize = function (val) {\n  return val.toLowerCase().replace(/\\s+/g, '_').replace(/^minecraft:/, '');\n};\nconst requestedName = normalize(args.itemName);\nconst item = bot.inventory.items().find(function (i) {\n  return normalize(i.name) === requestedName || (i.displayName && normalize(i.displayName) === requestedName);\n});\nif (!item) {\n  return \"<MISSING>: Could not find \" + args.itemName + \" in inventory.\";\n}\ntry {\n  await bot.equip(item, args.destination);\n  return \"<EQUIPPED>: Put on \" + (item.displayName || item.name) + \" in \" + args.destination + \" slot.\";\n} catch (err) {\n  return \"<ERROR>: Failed to equip \" + args.itemName + \": \" + err.message;\n}",
+    "count": 1
+  }
+]

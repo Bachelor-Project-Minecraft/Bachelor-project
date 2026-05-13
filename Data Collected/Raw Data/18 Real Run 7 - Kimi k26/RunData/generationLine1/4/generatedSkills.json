@@ -1,0 +1,9 @@
+[
+  {
+    "name": "retreat_while_eating",
+    "description": "Move to the specified x,z coordinates while eating bread from inventory until hunger is full or bread runs out. Keeps relocating while healing to avoid remaining hostiles.",
+    "parameters": "z.object({ destination: z.object({ x: z.number().describe('The x coordinate to retreat to'), z: z.number().describe('The z coordinate to retreat to') }).describe('The target x and z coordinates to move toward while eating bread') })",
+    "code": "const destX = args.destination.x;\nconst destZ = args.destination.z;\nconst movements = new Movements(bot);\nbot.pathfinder.setMovements(movements);\nconst goal = new goals.GoalXZ(destX, destZ);\n\nlet eaten = 0;\n\nconst movePromise = bot.pathfinder.goto(goal).catch(() => {});\n\nwhile (bot.food < 20) {\n  const bread = bot.inventory.items().find(item => item.name === 'bread');\n  if (!bread) break;\n  try {\n    await bot.equip(bread, 'hand');\n    await bot.consume();\n    eaten++;\n  } catch (err) {\n    await new Promise(resolve => setTimeout(resolve, 100));\n  }\n}\n\ntry {\n  await movePromise;\n} catch (err) {}\n\nbot.pathfinder.setGoal(null);\n\nlet result = `<RETREATED>: Moved toward (${destX}, ${destZ}).`;\nif (eaten > 0) {\n  result += ` Ate ${eaten} bread.`;\n} else if (!bot.inventory.items().find(item => item.name === 'bread')) {\n  result += ` No bread available.`;\n} else {\n  result += ` Hunger already full or could not eat.`;\n}\nresult += ` Final hunger: ${bot.food}.`;\nreturn result;",
+    "count": 2
+  }
+]

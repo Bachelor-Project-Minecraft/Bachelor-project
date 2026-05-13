@@ -1,0 +1,9 @@
+[
+  {
+    "name": "shoot_zombie",
+    "description": "Use bow to shoot nearest zombie with arrows",
+    "parameters": "z.object({entityType:z.string().describe('The entity type to target, e.g. “zombie”'),options:z.object({arrowCount:z.number().int().min(1).max(64).describe('Number of arrows to shoot'),targetId:z.number().optional().describe('Specific entity ID; if omitted shoots nearest entityType')}).describe('Shooting options')})",
+    "code": "const bow=bot.inventory.findInventoryItem('bow');if(!bow){return'<NO BOW>: No bow found.';}let arrowCountAvailable=0;for(const item of bot.inventory.items()){if(item.name==='arrow')arrowCountAvailable+=item.count;}if(arrowCountAvailable<args.options.arrowCount){return'<NO ARROWS>: Need '+args.options.arrowCount+' arrows.';}await bot.equip(bow,'hand');let target;if(args.options.targetId!=null){target=bot.entities[args.options.targetId];if(!target||target.name!==args.entityType){return'<NO TARGET>: Invalid target ID or type.';}}else{target=bot.nearestEntity(entity=>entity.name===args.entityType&&!entity.isDead());if(!target){return'<NO TARGET>: No '+args.entityType+' nearby.';}}const dist=target.position.distanceTo(bot.entity.position);if(dist>40){return'<TOO FAR>: '+Math.round(dist)+' blocks away.';}let shots=0;for(let i=0;i<args.options.arrowCount;i++){if(!target||target.isDead?.())break;const aimPos=target.position.plus(new Vec3(0,1,0));await bot.lookAt(aimPos);await bot.activateItem();shots++;await bot.waitForTicks(10);}return'<SHOT>: Fired '+shots+' arrow(s) at '+args.entityType+' (ID: '+target.id+').';",
+    "count": 2
+  }
+]

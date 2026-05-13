@@ -1,0 +1,9 @@
+[
+  {
+    "name": "move_to_midpoint",
+    "description": "Move to midpoint x:0 z:0 radius:2 to regroup with Bot2",
+    "parameters": "z.object({ x: z.number().describe(\"The X coordinate of the target midpoint to reach\"), z: z.number().describe(\"The Z coordinate of the target midpoint to reach\"), radius: z.number().describe(\"The proximity radius required to be considered at the target location\") })",
+    "code": "const targetX = args.x;\nconst targetZ = args.z;\nconst radius = args.radius;\nconst targetY = bot.entity.position.y;\n\nstartBackgroundSkill(bot, 'move_to_midpoint', async function (token) {\n  const movements = new Movements(bot);\n  bot.pathfinder.setMovements(movements);\n  const goal = new goals.GoalNear(targetX, targetY, targetZ, radius);\n  \n  try {\n    await bot.pathfinder.goto(goal);\n    if (!token.cancelled) {\n      console.log('Successfully reached midpoint vicinity.');\n    }\n  } catch (error) {\n    if (!token.cancelled) {\n      console.log('Pathfinder error or movement interrupted: ' + error.message);\n    }\n  }\n});\n\nreturn \"<MOVING>: Moving toward midpoint (\" + targetX + \", \" + targetZ + \") with a radius of \" + radius + \".\";",
+    "count": 6
+  }
+]

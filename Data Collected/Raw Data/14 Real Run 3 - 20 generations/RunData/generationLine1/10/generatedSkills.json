@@ -1,0 +1,9 @@
+[
+  {
+    "name": "report_teammate_death",
+    "description": "Alert teammates about Bot1's death and assess current threat level before taking any action",
+    "parameters": "z.object({message:z.string().describe('Announcement about the teammate who died'),status:z.string().describe('Additional status like health before death')})",
+    "code": "if (!bot.entity || bot.health <= 0) { return '<ERROR>: Cannot send alert while dead.'; } const hostileKinds = new Set(['zombie','skeleton','creeper','spider','enderman','witch','blaze','ghast','magma_cube','silverfish','endermite','husk','stray','zombie_pigman']); const pos = bot.entity.position; let nearbyHostiles = 0; let closestThreatDist = Infinity; for (const entity of Object.values(bot.entities)) { if (!entity.position || entity.type === 'player') continue; const dist = entity.position.distanceTo(pos); if (dist > 10) continue; if (hostileKinds.has(entity.kind)) { nearbyHostiles++; if (dist < closestThreatDist) closestThreatDist = dist; } } const threatLevel = nearbyHostiles === 0 ? 'none' : closestThreatDist < 1.5 ? 'critical' : (closestThreatDist < 3 || nearbyHostiles >= 4) ? 'high' : 'medium'; const alertMsg = `[TEAM ALERT] ${args.message} | ${args.status} | Threat: ${threatLevel} (${nearbyHostiles} nearby, closest ${closestThreatDist.toFixed(1)})`; bot.chat(alertMsg); return `<REPORTED>: Alerted team with threat assessment (${threatLevel}).`;",
+    "count": 1
+  }
+]

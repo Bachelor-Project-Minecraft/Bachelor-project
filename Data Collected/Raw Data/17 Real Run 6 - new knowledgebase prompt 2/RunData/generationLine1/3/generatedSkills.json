@@ -1,0 +1,9 @@
+[
+  {
+    "name": "drop_bread",
+    "description": "Drop 3 bread items toward Bot1",
+    "parameters": "z.object({playerName:z.string().describe('Name of the player or bot to drop bread toward'),count:z.number().int().min(1).max(64).describe('Number of bread items to drop')})",
+    "code": "const targetPlayer=bot.players[args.playerName];if(!targetPlayer||!targetPlayer.entity){return`<NO TARGET>: Could not find ${args.playerName}`;}const targetEntity=targetPlayer.entity;let breadTotal=0;for(const item of bot.inventory.items()){if(item&&item.name==='bread')breadTotal+=item.count;}if(breadTotal<args.count){return`<NOT ENOUGH BREAD>: Need ${args.count}, have ${breadTotal}`;}if(!bot.heldItem||bot.heldItem.name!=='bread'){const breadItem=bot.inventory.findInventoryItem('bread');if(!breadItem){return'<ERROR>';}await bot.equip(breadItem,'hand');}bot.lookAt(targetEntity.position);await new Promise(r=>setTimeout(r,200));const handSlot=36+bot.currentSlot;await bot.clickWindow(handSlot,0,0);await new Promise(r=>setTimeout(r,50));for(let i=0;i<args.count;i++){await bot.clickWindow(-999,0,4);await new Promise(r=>setTimeout(r,100));}await bot.clickWindow(handSlot,0,0);return`<DROPPED>: ${args.count} bread toward ${args.playerName}`;",
+    "count": 1
+  }
+]

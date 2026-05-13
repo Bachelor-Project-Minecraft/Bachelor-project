@@ -1,0 +1,9 @@
+[
+  {
+    "name": "pick_up_item",
+    "description": "Move to a dropped item and collect it",
+    "parameters": "z.object({itemType: z.string().describe('The Minecraft item name to find and pick up, like oak_planks'), maxDistance: z.number().describe('Maximum distance from bot to search for the dropped item')})",
+    "code": "const pos = bot.entity.position; const candidates = Object.values(bot.entities).filter(e => e.kind === 'object' && e.item && e.item.name === args.itemType && e.position.distanceTo(pos) <= args.maxDistance).sort((a, b) => a.position.distanceTo(pos) - b.position.distanceTo(pos)); if (candidates.length === 0) { return `<NO ITEM>: No ${args.itemType} dropped item within ${args.maxDistance} blocks.`; } const target = candidates[0]; const movements = new Movements(bot); bot.pathfinder.setMovements(movements); await bot.pathfinder.goto(new goals.GoalNear(target.position.x, target.position.y, target.position.z, 1.5)); return `<PICKED UP>: Collected ${args.itemType}.`;",
+    "count": 1
+  }
+]

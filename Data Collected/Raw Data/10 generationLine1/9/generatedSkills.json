@@ -1,0 +1,9 @@
+[
+  {
+    "name": "move_to_player",
+    "description": "Move toward a target player to maintain close proximity for defensive cooperation",
+    "parameters": "z.object({targetPlayerName: z.string().describe(\"Name of the player to move toward or follow.\"), followDistanceBlocks: z.number().int().min(1).max(32).default(4).describe(\"Distance threshold to start moving toward the player.\"), stopRangeBlocks: z.number().int().min(0).max(10).default(2).describe(\"Target distance to reach when moving toward the player.\")})",
+    "code": "const playerName = args.targetPlayerName; if (!bot.entity || bot.health <= 0) { return '<UNSAFE>: Cannot move to player because the bot is not alive.'; } const targetPlayer = bot.players[playerName]; if (!targetPlayer) { return '<NO TARGET>: Player ' + playerName + ' is not in the player list.'; } startBackgroundSkill(bot, 'move_to_player', async function (token) { const pollMs = 200; const movements = new Movements(bot); movements.canDig = false; try { while (canContinueBotAction(bot, token)) { if (!await waitUntilWorldActive(bot, token, pollMs)) return; const player = bot.players[playerName]; const targetEntity = player ? player.entity : null; if (!targetEntity) { bot.pathfinder.setGoal(null); if (!await waitForActiveMs(bot, token, 1000, 50)) return; continue; } const dist = bot.entity.position.distanceTo(targetEntity.position); if (dist > args.followDistanceBlocks) { bot.pathfinder.setMovements(movements); bot.pathfinder.setGoal(new goals.GoalFollow(targetEntity, args.stopRangeBlocks)); } else if (dist <= args.stopRangeBlocks + 0.1) { bot.pathfinder.setGoal(null); } if (!await waitForActiveMs(bot, token, pollMs, 50)) return; } } finally { bot.pathfinder.setGoal(null); } }); return '<STARTED>: Defensive proximity management started for player ' + playerName + ' (threshold: ' + args.followDistanceBlocks + 'm, stop: ' + args.stopRangeBlocks + 'm).';",
+    "count": 3
+  }
+]

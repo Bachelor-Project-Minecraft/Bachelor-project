@@ -1,0 +1,9 @@
+[
+  {
+    "name": "identify_remaining_hostiles",
+    "description": "Check for any remaining hostile mobs in the area and identify the closest one to attack",
+    "parameters": "z.object({radius: z.number().default(32).describe('Maximum distance in blocks to search for remaining hostile mobs')}).describe('Parameters for checking and identifying the closest hostile mob')",
+    "code": "const hostileNames = new Set(['zombie','skeleton','creeper','spider','cave_spider','enderman','witch','blaze','ghast','magma_cube','silverfish','slime','phantom','shulker','guardian','elder_guardian','wither_skeleton','stray','husk','drowned','vex','evoker','vindicator','pillager','ravager','zombified_piglin','piglin_brute','hoglin','zoglin','wither'] ); const myPos = bot.entity.position; let closest = null; let minDist = Infinity; for (const entity of Object.values(bot.entities)) { if (!entity.valid || entity === bot.entity || entity.type === 'player' || !entity.position || !entity.name) continue; const name = entity.name.toLowerCase(); if (!hostileNames.has(name)) continue; const dist = entity.position.distanceTo(myPos); if (dist < args.radius && dist < minDist) { minDist = dist; closest = entity; } } if (!closest) { return `<NO HOSTILES>: No remaining hostiles within ${Math.round(args.radius)} blocks.`; } await bot.lookAt(closest.position); const distStr = minDist.toFixed(1); const posStr = `(${closest.position.x.toFixed(1)},${closest.position.y.toFixed(1)},${closest.position.z.toFixed(1)})`; const idStr = closest.id ? ` id=${closest.id}` : ''; return `<TARGETED>: ${closest.name}${idStr} dist=${distStr} pos=${posStr}`;",
+    "count": 1
+  }
+]
