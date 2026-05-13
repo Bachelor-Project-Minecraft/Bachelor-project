@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { LlmCallLog, LlmMessage } from '../types';
+import { LlmCallLog, LlmMessage } from '../utils/types';
 import { cloneJson, getRuntimePath } from '../utils/util';
 
 export interface AgentLogRecord {

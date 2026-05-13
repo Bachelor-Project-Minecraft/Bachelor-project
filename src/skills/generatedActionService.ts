@@ -5,8 +5,8 @@ import * as fsSync from "fs";
 import { Vec3 as Vec3Constructor } from "vec3";
 import { z } from "zod";
 import { config } from "../config";
-import { LLMClient } from "../llmClient";
-import { GeneratedSkillDefinition, Skill } from "../types";
+import { LLMClient } from "../utils/llmClient";
+import { GeneratedSkillDefinition, Skill } from "../utils/types";
 import { getActionGenerationPrompt } from "../utils/prompts";
 import {
     canContinueBotAction,

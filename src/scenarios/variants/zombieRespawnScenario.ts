@@ -1,5 +1,5 @@
-import type { Agent } from '../../agent';
-import type { MinecraftServer } from '../../minecraftServer';
+import type { Agent } from '../../agent/agent';
+import type { MinecraftServer } from '../../server/minecraftServer';
 import { Scenario } from '../scenario';
 
 const zombieTag = 'scenario_respawn_zombie';

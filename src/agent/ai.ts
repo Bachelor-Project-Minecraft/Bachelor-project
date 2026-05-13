@@ -1,19 +1,19 @@
 import { Agent } from './agent';
-import { config } from './config';
-import { LLMClient } from './llmClient';
-import { SkillRegistry } from './skills/skillRegistry';
-import { LlmChatResponse, LlmMessage, LlmToolCall, LlmToolDefinition, Skill } from './types';
-import { getSummarizeHistoryPrompt, getSystemPrompt, getToolRepairPrompt } from './utils/prompts';
-import { GeneratedActionService } from './skills/generatedActionService';
+import { config } from '../config';
+import { LLMClient } from '../utils/llmClient';
+import { SkillRegistry } from '../skills/skillRegistry';
+import { LlmChatResponse, LlmMessage, LlmToolCall, LlmToolDefinition, Skill } from '../utils/types';
+import { getSummarizeHistoryPrompt, getSystemPrompt, getToolRepairPrompt } from '../utils/prompts';
+import { GeneratedActionService } from '../skills/generatedActionService';
 import { z } from 'zod';
-import { AgentLogStore } from './evolution/agentLogStore';
-import { Evolution } from './evolution/evolution';
+import { AgentLogStore } from '../evolution/agentLogStore';
+import { Evolution } from '../evolution/evolution';
 import {
     formatValidationIssues,
     parseJsonOrOriginal,
     stringifyError,
     stringifyJson
-} from './utils/util';
+} from '../utils/util';
 
 type ValidationResult =
     | { success: true; data: unknown }

@@ -1,6 +1,6 @@
 import * as path from 'path';
 import type { Bot } from 'mineflayer';
-import { AutoLlmModels } from '../types';
+import { AutoLlmModels } from './types';
 
 export interface CancellableToken {
 	cancelled: boolean;

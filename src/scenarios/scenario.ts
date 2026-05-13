@@ -1,5 +1,5 @@
-import type { Agent } from '../agent';
-import type { MinecraftServer } from '../minecraftServer';
+import type { Agent } from '../agent/agent';
+import type { MinecraftServer } from '../server/minecraftServer';
 import type { EntitySpawn, Position, AgentItem } from './types';
 
 const defaultAgentSpawnPosition: Position = { x: 0, y: 0, z: 0 };

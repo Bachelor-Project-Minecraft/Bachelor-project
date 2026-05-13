@@ -1,13 +1,13 @@
 import mineflayer, { Bot } from 'mineflayer';
 import { pathfinder } from 'mineflayer-pathfinder';
 import { plugin } from 'mineflayer-pvp';
-import { MinecraftServer } from './minecraftServer';
-import { config } from './config';
+import { MinecraftServer } from '../server/minecraftServer';
+import { config } from '../config';
 import { AIController } from './ai';
-import { Environment } from './environment/environment';
-import type { Scenario } from './scenarios';
-import type { EnvironmentChangeStep, EnvironmentSnapshot } from './environment/types';
-import { stopActiveBackgroundSkill } from './skills/backgroundSkillRunner';
+import { Environment } from '../environment/environment';
+import type { Scenario } from '../scenarios';
+import type { EnvironmentChangeStep, EnvironmentSnapshot } from '../environment/types';
+import { stopActiveBackgroundSkill } from '../skills/backgroundSkillRunner';
 
 export class Agent {
     public bot: Bot;

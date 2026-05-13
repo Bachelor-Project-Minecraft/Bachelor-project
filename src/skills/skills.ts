@@ -1,4 +1,4 @@
-import { JsonValue, JsonValueSchema, Skill, ToolSchema } from "../types";
+import { JsonValue, JsonValueSchema, Skill, ToolSchema } from "../utils/types";
 import { z } from "zod";
 import { GeneratedActionService } from "./generatedActionService";
 import { startBackgroundSkill } from "./backgroundSkillRunner";

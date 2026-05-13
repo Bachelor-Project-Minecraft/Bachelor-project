@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { config } from '../config';
-import { LLMClient } from '../llmClient';
+import { LLMClient } from '../utils/llmClient';
 import type { StoredAction } from '../skills/types';
 import { getKnowledgebaseUpdatePrompt } from '../utils/prompts';
 import { getRuntimePath, isStoredAction, normalizeText } from '../utils/util';

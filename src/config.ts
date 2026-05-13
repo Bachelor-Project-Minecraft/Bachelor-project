@@ -1,4 +1,4 @@
-import { LlmModelConfig } from "./types";
+import { LlmModelConfig } from "./utils/types";
 import { loadAutoLlmModels } from "./utils/util";
 
 const autoLlmModels = loadAutoLlmModels();

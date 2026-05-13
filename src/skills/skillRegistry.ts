@@ -1,4 +1,4 @@
-import { Skill } from "../types";
+import { Skill } from "../utils/types";
 import { Bot } from "mineflayer";
 import { z } from "zod";
 import { BowAttackSkill, createNewActionSkill, DoNothingSkill, EatBreadUntilFullSkill, EquipGearSkill, EquipItemInHandSkill, MeleeAttackSkill, MoveToCoordinateSkill, SendMessageSkill } from "./skills";

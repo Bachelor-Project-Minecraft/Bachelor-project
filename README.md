@@ -21,22 +21,6 @@ The first time, the program is lauched, the server will generate a eula.txt file
 
 ## Automated generation runs:
 
-To run one generation line for a fixed number of generations:
-
-```sh
-npm run gen -- 5 easyScenario
-```
-
-This starts a fresh generation line, runs the selected scenario for 5 generations, stops each generation when all agents are dead, and saves each generation to `RunData`.
-
-To continue from the current generation line instead of starting a fresh one, add `--continue`:
-
-```sh
-npm run gen -- 5 easyScenario --continue
-```
-
-This keeps the existing generation files and adds 5 more generations to that same line. For example, running the command above twice with `--continue` gives one generation line with 10 generations, rather than two separate generation lines with 5 generations each.
-
 To run multiple generation lines from `genLoopInfo.json`:
 
 ```sh

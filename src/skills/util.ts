@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GeneratedSkillDefinition, JsonValueSchema } from "../types";
+import { GeneratedSkillDefinition, JsonValueSchema } from "../utils/types";
 import {
     formatValidationIssues,
     isStoredAction,

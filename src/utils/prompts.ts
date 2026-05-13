@@ -1,4 +1,4 @@
-import { JsonValue } from "../types";
+import { JsonValue } from "./types";
 import { stringifyJson } from "./util";
 
 const USE_ACTION_EXAMPLES = `Examples of valid new_action calls:

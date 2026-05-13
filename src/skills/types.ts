@@ -2,7 +2,7 @@ import type { Bot } from "mineflayer";
 import type { Movements as PathfinderMovements, goals as PathfinderGoals } from "mineflayer-pathfinder";
 import type { Vec3 as Vec3Constructor } from "vec3";
 import type { z } from "zod";
-import type { GeneratedSkillDefinition, JsonValue, Skill } from "../types";
+import type { GeneratedSkillDefinition, JsonValue, Skill } from "../utils/types";
 import {
     canContinueBotAction,
     waitForActiveMs,

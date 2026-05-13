@@ -2,11 +2,11 @@ import "dotenv/config";
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { Agent } from './agent';
+import { Agent } from './agent/agent';
 import { config } from './config';
 import { AgentLogStore } from './evolution/agentLogStore';
 import { Evolution } from './evolution/evolution';
-import { MinecraftServer } from './minecraftServer';
+import { MinecraftServer } from './server/minecraftServer';
 import {
     availableScenarios,
     clearSelectedScenario,

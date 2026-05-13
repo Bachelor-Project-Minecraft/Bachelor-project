@@ -1,9 +1,9 @@
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import * as path from 'path';
-import { config } from './config';
+import { config } from '../config';
 import * as fs from 'fs';
-import { Agent } from './agent';
-import { getRuntimePath } from './utils/util';
+import { Agent } from '../agent/agent';
+import { getRuntimePath } from '../utils/util';
 
 export class MinecraftServer {
     private serverProcess: ChildProcessWithoutNullStreams | null = null;
